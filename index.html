@@ -29,7 +29,9 @@ header{
   display:flex; align-items:center; gap:14px 18px; flex-wrap:wrap;
   padding:10px 18px; background:linear-gradient(180deg,rgba(8,18,32,.98),rgba(8,18,32,.9));
   border-bottom:1px solid var(--panel-line); backdrop-filter:blur(4px);
+  transition:transform .25s ease;
 }
+#scroll{transition:top .25s ease}
 .brand{display:flex; flex-direction:column; line-height:1.05}
 .brand b{font-family:"Saira Condensed",sans-serif; font-weight:700; font-size:20px; letter-spacing:.5px; text-transform:uppercase; color:#eaf6ff}
 .brand small{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--ink-dim); letter-spacing:1px}
@@ -103,6 +105,12 @@ header{
 .node.selected{border-color:var(--amber); box-shadow:0 0 0 1px var(--amber),0 0 16px rgba(255,182,72,.5)}
 .node.hidden{display:none}
 .node.faded{opacity:.08 !important}
+/* code-only overview (very low zoom): hide everything but the course code, centered + enlarged */
+#map.codeonly .node{display:flex; align-items:center; justify-content:center; padding:4px}
+#map.codeonly .node>.nm,#map.codeonly .node>.cr,#map.codeonly .node>.grade,
+#map.codeonly .node>.star,#map.codeonly .node>.dot,#map.codeonly .node>.ename{display:none}
+#map.codeonly .node>.code{font-size:22px; font-weight:700}
+#map.codeonly .node>.ecode{font-size:20px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
 /* wires */
 .wire{fill:none; stroke:rgba(130,190,230,.34); stroke-width:1.4}
 .wire.co{stroke-dasharray:5 5}
@@ -236,6 +244,14 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 ::-webkit-scrollbar-thumb{background:#1b3550;border-radius:6px}
 ::-webkit-scrollbar-track{background:transparent}
 /* ---- mobile ---- */
+/* phone, either orientation: tighter year header + header that scrolls away on scroll-down */
+@media (max-width:720px),(max-height:520px){
+  #cols{height:42px}
+  #cols .colhdr{top:2px; height:36px}
+  #cols .colhdr b{font-size:14px}
+  body.hidehdr header{transform:translateY(-105%)}
+  body.hidehdr #scroll{top:0}
+}
 @media (max-width:720px){
   header{gap:8px 12px; padding:8px 12px}
   .brand b{font-size:16px} .brand small{font-size:9px}
@@ -743,6 +759,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') docview.classList.
 // ---- zoom (CSS zoom keeps sticky header working) ----
 let z=1;
 function setZoom(v){ z=Math.max(0.2,Math.min(2,v)); map.style.zoom=z; colsBar.style.zoom=z;
+  map.classList.toggle('codeonly', z<0.45);   // tiny zoom: show course code only
   document.getElementById('zlevel').textContent=Math.round(z*100)+'%'; }
 document.getElementById('zin').onclick=()=>setZoom(z*1.2);
 document.getElementById('zout').onclick=()=>setZoom(z/1.2);
@@ -752,13 +769,23 @@ document.getElementById('zfit').onclick=()=>{
   // phone (portrait OR landscape): fitting all 9 columns = unreadable (~0.2).
   const phone = window.innerWidth<=720 || (window.innerHeight<=520 && window.innerWidth<=950);
   if(phone){
-    // show a readable overview (~2.3 cols) and let the user pan, instead of shrinking everything to fit.
-    setZoom(Math.min(0.9, Math.max(0.55, w/(2.3*COL_W))));
+    setZoom(0.25);   // whole-map overview; codeonly kicks in (<0.45) so only course codes show
   } else {
     setZoom(Math.min(w/mapW, h/(mapH+56)));
   }
   scroll.scrollTo({left:0,top:0});
 };
+
+// ---- phones: header scrolls away on scroll-down, returns on scroll-up (frees vertical space) ----
+const phoneMQ=window.matchMedia('(max-width:720px),(max-height:520px)');
+let lastST=0;
+scroll.addEventListener('scroll',()=>{
+  if(!phoneMQ.matches){ document.body.classList.remove('hidehdr'); return; }
+  const st=scroll.scrollTop;
+  if(st>lastST+6 && st>64) document.body.classList.add('hidehdr');
+  else if(st<lastST-6) document.body.classList.remove('hidehdr');
+  lastST=st;
+},{passive:true});
 
 // ---- side panel + pin-select ----
 let curPanel=null;
