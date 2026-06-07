@@ -77,9 +77,7 @@ header{
   display:flex; align-items:center; gap:14px 18px; flex-wrap:wrap;
   padding:10px 18px; background:linear-gradient(180deg,rgba(8,18,32,.98),rgba(8,18,32,.9));
   border-bottom:1px solid var(--panel-line); backdrop-filter:blur(4px);
-  transition:transform .25s ease;
 }
-#scroll{transition:top .25s ease}
 .brand{display:flex; flex-direction:column; line-height:1.05}
 .brand b{font-family:"Saira Condensed",sans-serif; font-weight:700; font-size:20px; letter-spacing:.5px; text-transform:uppercase; color:#eaf6ff}
 .brand small{font-family:"IBM Plex Mono",monospace; font-size:10px; color:var(--ink-dim); letter-spacing:1px}
@@ -157,8 +155,8 @@ header{
 #map.codeonly .node{display:flex; align-items:center; justify-content:center; padding:4px}
 #map.codeonly .node>.nm,#map.codeonly .node>.cr,#map.codeonly .node>.grade,
 #map.codeonly .node>.star,#map.codeonly .node>.dot,#map.codeonly .node>.ename{display:none}
-#map.codeonly .node>.code{font-size:22px; font-weight:700}
-#map.codeonly .node>.ecode{font-size:20px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
+#map.codeonly .node>.code{font-size:12px; font-weight:700}
+#map.codeonly .node>.ecode{font-size:12px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
 /* wires */
 .wire{fill:none; stroke:rgba(130,190,230,.34); stroke-width:1.4}
 .wire.co{stroke-dasharray:5 5}
@@ -297,8 +295,8 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   #cols{height:42px}
   #cols .colhdr{top:2px; height:36px}
   #cols .colhdr b{font-size:14px}
-  body.hidehdr header{transform:translateY(-105%)}
-  body.hidehdr #scroll{top:0}
+  header{position:static}   /* not fixed: top bar scrolls away with the content */
+  #scroll{top:0}            /* header now lives at the top of the scroll flow; year box stays sticky */
 }
 @media (max-width:720px){
   header{gap:8px 12px; padding:8px 12px}
@@ -317,22 +315,21 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 </style>
 </head>
 <body>
-<header>
-  <div class="brand">
-    <b>Civil Engineering &middot; Course Map</b>
-    <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; 149 Credit</small>
-  </div>
-  <div class="legend" id="legend"></div>
-  <div class="tools">
-    <input type="search" id="search" placeholder="search…" autocomplete="off"/>
-    <button class="btn" id="starsBtn">★ starred</button>
-    <button class="btn" id="sumBtn">▣ progress</button>
-    <button class="btn" id="pdfBtn">⭳ save pdf</button>
-    <span class="counts" id="counts"></span>
-  </div>
-</header>
-
 <div id="scroll">
+  <header>
+    <div class="brand">
+      <b>Civil Engineering &middot; Course Map</b>
+      <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; 149 Credit</small>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="tools">
+      <input type="search" id="search" placeholder="search…" autocomplete="off"/>
+      <button class="btn" id="starsBtn">★ starred</button>
+      <button class="btn" id="sumBtn">▣ progress</button>
+      <button class="btn" id="pdfBtn">⭳ save pdf</button>
+      <span class="counts" id="counts"></span>
+    </div>
+  </header>
   <div id="cols"></div>
   <div id="map">
     <svg id="wires">
@@ -426,6 +423,7 @@ const map=document.getElementById('map'), wires=document.getElementById('wires')
 const scroll=document.getElementById('scroll'), header=document.querySelector('header');
 const byKey={}; DATA.nodes.forEach(n=>byKey[n.key]=n);
 const NCOL=DATA.sems.length;
+const HOVER=window.matchMedia('(hover:hover)').matches;   // false on touch screens
 
 // adjacency
 const prereqsOf={}, unlocksOf={};
@@ -495,9 +493,12 @@ DATA.nodes.forEach(n=>{
   if(stars[n.key]) el.classList.add('starred');
   if(notes[n.key] && notes[n.key].trim()) el.classList.add('hasnote');
   map.appendChild(el); nodeEl[n.key]=el;
-  el.addEventListener('mouseenter',()=>{ if(!pinned) highlight(n.key); });
-  el.addEventListener('mouseleave',()=>{ if(!pinned) clearHi(); });
-  el.addEventListener('click',e=>{ const t=e.target; if(!t.classList.contains('star')&&!t.classList.contains('grade')&&!t.classList.contains('ecode')&&!t.classList.contains('ename')) selectNode(n.key); });
+  el.addEventListener('mouseenter',()=>{ if(HOVER && !pinned) highlight(n.key); });
+  el.addEventListener('mouseleave',()=>{ if(HOVER && !pinned) clearHi(); });
+  el.addEventListener('click',e=>{ const t=e.target;
+    if(t.classList.contains('star')||t.classList.contains('grade')||t.classList.contains('ecode')||t.classList.contains('ename')) return;
+    if(HOVER) selectNode(n.key); else tapNode(n.key);   // desktop: click=info; touch: two-step tap
+  });
   el.querySelector('.star').addEventListener('click',e=>{e.stopPropagation(); toggleStar(n.key);});
   const sel=el.querySelector('.grade'); sel.value=grades[n.key]||''; applyGradeClass(n.key,sel.value);
   sel.addEventListener('mousedown',e=>e.stopPropagation());
@@ -824,23 +825,25 @@ document.getElementById('zfit').onclick=()=>{
   scroll.scrollTo({left:0,top:0});
 };
 
-// ---- phones: header scrolls away on scroll-down, returns on scroll-up (frees vertical space) ----
-const phoneMQ=window.matchMedia('(max-width:720px),(max-height:520px)');
-let lastST=0;
-scroll.addEventListener('scroll',()=>{
-  if(!phoneMQ.matches){ document.body.classList.remove('hidehdr'); return; }
-  const st=scroll.scrollTop;
-  if(st>lastST+6 && st>64) document.body.classList.add('hidehdr');
-  else if(st<lastST-6) document.body.classList.remove('hidehdr');
-  lastST=st;
-},{passive:true});
-
 // ---- side panel + pin-select ----
 let curPanel=null;
 const panel=document.getElementById('panel'); const $=id=>document.getElementById(id);
 function selectNode(key){ pinned=key; clearHi(); highlight(key); openPanel(key); }
 function deselect(){ pinned=null; clearHi(); panel.classList.remove('open'); curPanel=null;
   document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected')); }
+function closePanelKeepGlow(){ panel.classList.remove('open'); curPanel=null;
+  document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected')); }   // glow/pin stays
+// touch (no hover): 1st tap = glow only; 2nd tap same course = info; tapping it again with info open, or empty space, clears
+function tapNode(key){
+  if(pinned===key){
+    if(curPanel===key) deselect();        // info already open → clear all
+    else openPanel(key);                  // glow already shown → reveal info (glow stays)
+  } else {
+    closePanelKeepGlow();                  // switch to a different course
+    pinned=key; clearHi(); highlight(key); // glow only, no panel yet
+  }
+}
+map.addEventListener('click',e=>{ if(!e.target.closest('.node')) deselect(); });   // tap empty space clears
 function openPanel(key){
   curPanel=key; const n=byKey[key], c=DATA.cats[n.cat];
   document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected'));
@@ -857,7 +860,7 @@ function openPanel(key){
   $('pnotes').value=notes[key]||""; $('psaved').textContent=notes[key]?"saved":"";
   syncPanelStar(); panel.classList.add('open');
 }
-$('pclose').addEventListener('click',deselect);
+$('pclose').addEventListener('click',()=>{ if(HOVER) deselect(); else closePanelKeepGlow(); });
 let t=null;
 $('pnotes').addEventListener('input',()=>{
   if(!curPanel)return; notes[curPanel]=$('pnotes').value; saveNotes();
