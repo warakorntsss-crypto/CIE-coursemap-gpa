@@ -292,9 +292,10 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 /* ---- mobile ---- */
 /* phone, either orientation: tighter year header + header that scrolls away on scroll-down */
 @media (max-width:720px),(max-height:520px){
-  #cols{height:42px}
-  #cols .colhdr{top:2px; height:36px}
-  #cols .colhdr b{font-size:14px}
+  #cols{height:48px}
+  #cols .colhdr{top:2px; height:42px; flex-direction:row; gap:7px}  /* slightly thicker; year + credit on one row */
+  #cols .colhdr b{font-size:10.5px}     /* white year label, 25% smaller than before (14px) */
+  #cols .colhdr span{font-size:9px}     /* blue credit now sits to the right of the year */
   header{position:static}   /* not fixed: top bar scrolls away with the content */
   #scroll{top:0}            /* header now lives at the top of the scroll flow; year box stays sticky */
 }
