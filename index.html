@@ -107,8 +107,12 @@ header{
 #map.codeonly .node{display:flex; align-items:center; justify-content:center; padding:4px}
 #map.codeonly .node>.nm,#map.codeonly .node>.cr,#map.codeonly .node>.grade,
 #map.codeonly .node>.star,#map.codeonly .node>.dot,#map.codeonly .node>.ename{display:none}
-#map.codeonly .node>.code{font-size:12px; font-weight:700}
-#map.codeonly .node>.ecode{font-size:12px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
+#map.codeonly .node>.code{font-size:10.5px; font-weight:700}
+#map.codeonly .node>.ecode{font-size:10.5px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
+/* FIT view: abbreviate the year-box credit ("21 Credit" -> "21 CR") */
+#cols .colhdr .u-short{display:none}
+#cols.codeonly .colhdr .u-long{display:none}
+#cols.codeonly .colhdr .u-short{display:inline}
 /* wires */
 .wire{fill:none; stroke:rgba(130,190,230,.34); stroke-width:1.4}
 .wire.co{stroke-dasharray:5 5}
@@ -420,7 +424,7 @@ wires.setAttribute("width",mapW); wires.setAttribute("height",mapH); wires.setAt
 DATA.sems.forEach((s,i)=>{
   const h=document.createElement('div'); h.className='colhdr';
   h.style.left=(PAD+i*COL_W)+"px"; h.style.width=BOX_W+"px";
-  h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+" Credit</span>"; colsBar.appendChild(h);
+  h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>'; colsBar.appendChild(h);
 });
 
 // ---- nodes ----
@@ -762,6 +766,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') docview.classList.
 let z=1;
 function setZoom(v){ z=Math.max(0.2,Math.min(2,v)); map.style.zoom=z; colsBar.style.zoom=z;
   map.classList.toggle('codeonly', z<0.45);   // tiny zoom: show course code only
+  colsBar.classList.toggle('codeonly', z<0.45);  // ...and abbreviate the year-box credit
   document.getElementById('zlevel').textContent=Math.round(z*100)+'%'; }
 document.getElementById('zin').onclick=()=>setZoom(z*1.2);
 document.getElementById('zout').onclick=()=>setZoom(z/1.2);
