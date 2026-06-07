@@ -212,13 +212,17 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .cyear{flex:1; border:1px solid #c7d0db; border-radius:5px; overflow:hidden; font-size:10.5px}
 .cytitle{background:#16202b; color:#fff; font-family:"Saira Condensed",sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.5px; font-size:13px; text-align:center; padding:4px}
 .cyhdr{background:#eef2f7; color:#384655; font-weight:700; font-size:9.5px; letter-spacing:.3px; padding:2px 6px; border-top:1px solid #d4dce6}
-.cyrow{display:flex; justify-content:space-between; gap:6px; padding:2px 6px; border-top:1px solid #eef2f7}
-.cyrow span{font-family:"IBM Plex Mono",monospace}
-.cyrow b{font-weight:700; min-width:22px; text-align:right}
+.cyrow{display:flex; flex-wrap:nowrap; justify-content:space-between; gap:6px; padding:2px 6px; border-top:1px solid #eef2f7}
+.cyrow span{font-family:"IBM Plex Mono",monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0}
+.cyrow b{flex:0 0 auto; font-weight:700; min-width:18px; text-align:right}
 .cygpa{padding:4px 6px; border-top:2px solid #16202b; background:#f6f8fb; font-weight:700; text-align:right; font-size:11px}
 .cygpa b{color:#1f3a8a; margin-left:4px}
 .compactpaper .sigrow{margin-top:18px}
+.doc-warn{background:#fff4d6; border:1px solid #e0b34a; border-left:4px solid #e0a020; color:#5a4205;
+  border-radius:6px; padding:9px 12px; margin:0 0 14px; font-size:12px; line-height:1.45}
+.doc-warn b{color:#7a5800}
 @media print{
+  .doc-warn{display:none !important}
   @page{ size:A4; margin:13mm }
   html,body{height:auto; overflow:visible; background:#fff}
   header,#scroll,#zoom,#panel,#summary,.hint,.doctools{display:none !important}
@@ -242,7 +246,9 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   #panel{width:100%; max-width:100%}
   .hint{display:none}
   #zoom button{width:44px; height:44px}
-  .node .star{padding:8px; font-size:17px}
+  .node .star{padding:4px; font-size:14px; right:2px; top:2px}
+  /* compact 1-page recap: fixed readable width on phone, modal scrolls sideways */
+  .compactpaper{width:720px; max-width:none}
 }
 </style>
 </head>
@@ -641,6 +647,12 @@ const LS_STU="cie_student_v1", LS_ADV="cie_advnote_v1";
 const stu=JSON.parse(localStorage.getItem(LS_STU)||"{}");
 const docview=document.getElementById('docview');
 function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// in-app webviews (LINE, Facebook, Instagram, etc.) usually can't run window.print() / save PDF
+const INAPP=/\b(Line|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Twitter|TikTok)\b/i.test(navigator.userAgent);
+function warnHtml(){ return INAPP
+  ? '<div class="doc-warn">⚠ You opened this from an in-app browser (e.g. <b>LINE</b>), which can’t save PDF. '+
+    'Tap the <b>⋯</b> / share menu and choose <b>“Open in browser”</b> (Safari / Chrome), then press Save PDF.</div>'
+  : ''; }
 const codeFor=n=>isElec(n)?elecCode(n):n.short;                       // registered/displayed code
 const titleFor=n=>isElec(n)?(elecName(n)||n.name):n.name;            // actual name if student filled it
 function docHead(today){
@@ -709,7 +721,7 @@ function buildDoc(mode){
   docMode = mode||docMode;
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'long',day:'numeric'});
   document.getElementById('docPaper').className='docpaper'+(docMode==='compact'?' compactpaper':'');
-  document.getElementById('docPaper').innerHTML = docMode==='compact'?buildCompact(today):buildFull(today);
+  document.getElementById('docPaper').innerHTML = warnHtml()+(docMode==='compact'?buildCompact(today):buildFull(today));
   document.getElementById('docFull').classList.toggle('on',docMode==='full');
   document.getElementById('docCompact').classList.toggle('on',docMode==='compact');
   // rebind persisted fields
@@ -722,7 +734,10 @@ document.getElementById('pdfBtn').addEventListener('click',()=>{ buildDoc('full'
 document.getElementById('docFull').addEventListener('click',()=>buildDoc('full'));
 document.getElementById('docCompact').addEventListener('click',()=>buildDoc('compact'));
 document.getElementById('docClose').addEventListener('click',()=>docview.classList.remove('open'));
-document.getElementById('docPrint').addEventListener('click',()=>window.print());
+document.getElementById('docPrint').addEventListener('click',()=>{
+  if(INAPP){ const w=document.querySelector('.doc-warn'); if(w){ w.scrollIntoView({block:'center'}); w.animate?w.animate([{opacity:.4},{opacity:1}],{duration:500,iterations:2}):0; } }
+  try{ window.print(); }catch(e){}
+});
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') docview.classList.remove('open'); });
 
 // ---- zoom (CSS zoom keeps sticky header working) ----
@@ -734,7 +749,14 @@ document.getElementById('zout').onclick=()=>setZoom(z/1.2);
 document.getElementById('zone').onclick=()=>{ setZoom(1); };
 document.getElementById('zfit').onclick=()=>{
   const w=scroll.clientWidth-16, h=scroll.clientHeight-16;
-  setZoom(Math.min(w/mapW, h/(mapH+56)));
+  // phone (portrait OR landscape): fitting all 9 columns = unreadable (~0.2).
+  const phone = window.innerWidth<=720 || (window.innerHeight<=520 && window.innerWidth<=950);
+  if(phone){
+    // show a readable overview (~2.3 cols) and let the user pan, instead of shrinking everything to fit.
+    setZoom(Math.min(0.9, Math.max(0.55, w/(2.3*COL_W))));
+  } else {
+    setZoom(Math.min(w/mapW, h/(mapH+56)));
+  }
   scroll.scrollTo({left:0,top:0});
 };
 
