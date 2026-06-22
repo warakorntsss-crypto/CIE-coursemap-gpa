@@ -749,7 +749,7 @@ function computeSummary(){
 
 // ---- formal PDF document (course list + summary + advisor comment + signatures) ----
 const docview=document.getElementById('docview');
-function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 // in-app webviews (LINE, Facebook, Instagram, etc.) usually can't run window.print() / save PDF
 const INAPP=/\b(Line|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Twitter|TikTok)\b/i.test(navigator.userAgent);
 function warnHtml(){ return INAPP
