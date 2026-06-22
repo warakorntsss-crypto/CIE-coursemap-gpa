@@ -89,6 +89,12 @@ header{
   font-family:"JetBrains Mono",monospace; font-size:12px; font-weight:600; text-align:center; text-align-last:center; appearance:none; -webkit-appearance:none}
 .node .grade:hover{border-color:var(--cyan)}
 .node .grade:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
+.node .retakes{position:absolute; right:7px; bottom:34px; display:flex; flex-wrap:wrap-reverse; justify-content:flex-end; gap:3px; max-width:150px}
+.node .retakes select{width:46px; height:22px; padding:0 2px; cursor:pointer;
+  background:#fff; color:#1e7a2e; border:1px dashed #d05c5c; border-radius:5px;
+  font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:600; text-align:center; text-align-last:center; appearance:none; -webkit-appearance:none}
+.node .retakes select:hover{border-color:var(--cyan)}
+.node .retakes select:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
 .node.graded .grade{color:#1e7a2e; border-color:#3f9e52}
 .node.failed .grade{color:#b3261e; border-color:#d05c5c}
 .node.withdrawn .grade{color:#54657a; border-color:#93a3b4}
@@ -111,7 +117,7 @@ header{
 .node.faded{opacity:.08 !important}
 /* code-only overview (very low zoom): hide everything but the course code, centered + enlarged */
 #map.codeonly .node{display:flex; align-items:center; justify-content:center; padding:4px}
-#map.codeonly .node>.nm,#map.codeonly .node>.cr,#map.codeonly .node>.grade,
+#map.codeonly .node>.nm,#map.codeonly .node>.cr,#map.codeonly .node>.grade,#map.codeonly .node>.retakes,
 #map.codeonly .node>.star,#map.codeonly .node>.dot,#map.codeonly .node>.ename{display:none}
 #map.codeonly .node>.code{font-size:18px; font-weight:700}
 #map.codeonly .node>.ecode{font-size:18px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
@@ -522,6 +528,7 @@ DATA.nodes.forEach(n=>{
     : '';
   el.innerHTML=codeHtml+'<div class="nm">'+n.name+'</div>'+elecNameHtml+
     '<div class="cr">'+n.cr+' Credit</div>'+
+    '<span class="retakes"></span>'+
     '<select class="grade" title="grade received"><option value="">-</option>'+GRADE_OPTS+'</select>'+
     '<div class="star" title="star">★</div><div class="dot"></div>';
   if(isElec(n)) el.classList.add('elec');
@@ -529,14 +536,17 @@ DATA.nodes.forEach(n=>{
   if(notes[n.key] && notes[n.key].trim()) el.classList.add('hasnote');
   map.appendChild(el); nodeEl[n.key]=el;
   el.addEventListener('click',e=>{ const t=e.target;
-    if(t.classList.contains('star')||t.classList.contains('grade')||t.classList.contains('ecode')||t.classList.contains('ename')) return;
+    if(t.classList.contains('star')||t.classList.contains('grade')||t.closest('.retakes')||t.classList.contains('ecode')||t.classList.contains('ename')) return;
     tapNode(n.key);   // unified: 1st click = glow, 2nd click = info, again = clear
   });
   el.querySelector('.star').addEventListener('click',e=>{e.stopPropagation(); toggleStar(n.key);});
-  const sel=el.querySelector('.grade'); sel.value=grades[n.key]||''; applyGradeClass(n.key,sel.value);
-  sel.addEventListener('mousedown',e=>e.stopPropagation());
-  sel.addEventListener('click',e=>e.stopPropagation());
-  sel.addEventListener('change',e=>{ e.stopPropagation(); setGrade(n.key,sel.value); });
+  paintNode(n.key);   // fill grade + retake-chain selects from grades[key] (compound "F>F>A")
+  // delegated: any grade/retake select change recombines the attempt chain, then repaints
+  el.addEventListener('mousedown',e=>{ if(e.target.matches('.grade, .retakes select')) e.stopPropagation(); });
+  el.addEventListener('change',e=>{
+    if(!e.target.matches('.grade, .retakes select')) return;
+    e.stopPropagation(); setGrade(n.key, combineAttempts(el)); paintNode(n.key);
+  });
   if(isElec(n)){
     const setElec=(f,v)=>{ elec[n.key]=elec[n.key]||{}; if(v) elec[n.key][f]=v; else delete elec[n.key][f]; if(!Object.keys(elec[n.key]).length) delete elec[n.key]; saveElec(); syncExtra(n.key); };
     el.querySelectorAll('.ecode,.ename').forEach(inp=>{ inp.addEventListener('mousedown',e=>e.stopPropagation()); inp.addEventListener('click',e=>e.stopPropagation()); });
@@ -714,12 +724,57 @@ const CREDIT_NOGPA=new Set(['S','CS']);  // earn credit, no GPA points
 const TOTAL_CR=DATA.sems.reduce((s,x)=>s+x.cr,0);
 function semLabel(col){ const l=DATA.sems[col].label; if(/summer/i.test(l)) return 'Summer';
   const m=l.match(/Y(\d)\s*S(\d)/i); return m?('Year '+m[1]+' Semester '+m[2]):l; }
+// compound grade helpers: a retaken F is stored as "F>B" (primary > retake).
+// declared as functions so they're hoisted (applyGradeClass runs during initial render).
+function primaryGrade(g){ return String(g||'').split('>')[0]||''; }
+function effGrade(g){ const p=String(g||'').split('>'); return p[p.length-1]||''; } // last attempt
+function needsRetake(g){ return g==='F' || g==='W'; }   // F or W can be re-taken
+// GPA/credit contribution of one course; sums every attempt under the standard rules
+function nodeGpa(g, cr){
+  let num=0,den=0,cred=0;
+  (g?String(g).split('>'):[]).forEach(part=>{ const p=part.trim();
+    if(p in GPOINTS){ num+=GPOINTS[p]*cr; den+=cr; if(PASSING.has(p)) cred+=cr; }
+    else if(CREDIT_NOGPA.has(p)) cred+=cr;   // S/CS: credit, no GPA
+    // W/U/I/P/blank: nothing
+  });
+  return {num,den,cred};
+}
 function applyGradeClass(key,g){
   const el=nodeEl[key]; if(!el) return;
-  el.classList.toggle('graded',    /^(A|B\+|B|C\+|C|D\+|D)$/.test(g||''));   // A..D
-  el.classList.toggle('failed',    g==='F' || g==='U');
-  el.classList.toggle('withdrawn', g==='W' || g==='I' || g==='P');
-  el.classList.toggle('credited',  g==='S' || g==='CS');
+  const e=effGrade(g);   // colour by the latest attempt
+  el.classList.toggle('graded',    /^(A|B\+|B|C\+|C|D\+|D)$/.test(e));   // A..D
+  el.classList.toggle('failed',    e==='F' || e==='U');
+  el.classList.toggle('withdrawn', e==='W' || e==='I' || e==='P');
+  el.classList.toggle('credited',  e==='S' || e==='CS');
+}
+function retakeOpts(v){ return '<select class="rgrade" title="grade after re-taking">'+
+  '<option value="">↻ -</option>'+GRADES.map(x=>'<option value="'+x+'"'+(x===v?' selected':'')+'>'+x+'</option>').join('')+'</select>'; }
+// fill a node's grade + retake-chain selects from grades[key] (compound "F>F>A") and recolour
+function paintNode(key){
+  const el=nodeEl[key]; if(!el) return;
+  const g=grades[key]||'';
+  const parts=g===''?['']:String(g).split('>');
+  const sel=el.querySelector('.grade'); if(sel) sel.value=parts[0]||'';
+  const wrap=el.querySelector('.retakes');
+  if(wrap){
+    const retakes=parts.slice(1);                                   // existing retake attempts
+    if(needsRetake(parts[parts.length-1])) retakes.push('');        // empty slot for the next retake
+    wrap.innerHTML=retakes.map(retakeOpts).join('');
+  }
+  applyGradeClass(key, g);
+}
+// rebuild the stored grade string from a node's selects; a retake only survives if the
+// previous attempt was F/W (so changing an earlier grade collapses the dependent chain)
+function combineAttempts(el){
+  const sels=[el.querySelector('.grade'), ...el.querySelectorAll('.retakes select')];
+  const kept=[];
+  for(let i=0;i<sels.length;i++){
+    const v=sels[i].value;
+    if(i>0 && !needsRetake(sels[i-1].value)) break;   // chain broken: drop the rest
+    if(!v) break;                                     // empty attempt ends the chain
+    kept.push(v);
+  }
+  return kept.join('>');
 }
 function setGrade(key,g){
   if(g) grades[key]=g; else delete grades[key];
@@ -731,10 +786,7 @@ function gpaData(){
   for(let c=0;c<DATA.sems.length;c++){
     let num=0,den=0;
     DATA.nodes.filter(n=>n.col===c).forEach(n=>{
-      const g=grades[n.key]; if(!g) return;
-      if(g in GPOINTS){ num+=GPOINTS[g]*n.cr; den+=n.cr; if(PASSING.has(g)) cred+=n.cr; }
-      else if(CREDIT_NOGPA.has(g)) cred+=n.cr;             // S/CS: credit, no GPA
-      // W/U/I/P: no points, no credit
+      const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den; cred+=r.cred;
     });
     tNum+=num; tDen+=den;
     rows.push({col:c, label:semLabel(c), gpa:den?(num/den).toFixed(2):'—', den});
@@ -782,8 +834,9 @@ function buildFull(today){
   let sems='';
   for(let c=0;c<DATA.sems.length;c++){
     const rowsHtml=DATA.nodes.filter(n=>n.col===c).map(n=>{
-      const g=grades[n.key]||'-';
-      return '<tr><td>'+esc(codeFor(n))+'</td><td>'+esc(titleFor(n))+'</td><td class="c">'+n.cr+'</td><td class="c">'+g+'</td></tr>';
+      const g=grades[n.key]?String(grades[n.key]).replace(/>/g,' → '):'-';
+      const codeCell=(stars[n.key]?'★ ':'')+esc(codeFor(n));
+      return '<tr><td>'+codeCell+'</td><td>'+esc(titleFor(n))+'</td><td class="c">'+n.cr+'</td><td class="c">'+g+'</td></tr>';
     }).join('');
     const r=d.rows[c];
     sems+='<table class="docsem"><caption>'+r.label+' &mdash; '+DATA.sems[c].cr+' Credit</caption>'+
@@ -809,9 +862,9 @@ function buildCompact(today){
     yc.forEach(c=>{
       body+='<div class="cyhdr">'+DATA.sems[c].label+'</div>';
       DATA.nodes.filter(n=>n.col===c).forEach(n=>{
-        const gv=grades[n.key], g=gv||'-';
-        if(gv && gv in GPOINTS){ num+=GPOINTS[gv]*n.cr; den+=n.cr; }
-        body+='<div class="cyrow"><span>'+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
+        const gv=grades[n.key], g=gv?String(gv).replace(/>/g,'→'):'-';
+        const r=nodeGpa(gv, n.cr); num+=r.num; den+=r.den;
+        body+='<div class="cyrow"><span>'+(stars[n.key]?'★ ':'')+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
       });
     });
     const ygpa=den?(num/den).toFixed(2):'—';
@@ -980,7 +1033,7 @@ function syncCourse(key){ syncExtra(key); }   // back-compat alias
 function rehydrate(){
   DATA.nodes.forEach(n=>{
     const el=nodeEl[n.key]; if(!el) return;
-    const sel=el.querySelector('.grade'); if(sel){ sel.value=grades[n.key]||''; applyGradeClass(n.key, sel.value); }
+    paintNode(n.key);   // restores grade + retake selects from compound grade string
     el.classList.toggle('starred', !!stars[n.key]);
     el.classList.toggle('hasnote', !!(notes[n.key]&&notes[n.key].trim()));
     if(isElec(n)){
