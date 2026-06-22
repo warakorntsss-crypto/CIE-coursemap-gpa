@@ -298,6 +298,9 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 #login button:disabled{opacity:.6; cursor:default}
 #login .err{margin-top:12px; min-height:16px; font-family:"JetBrains Mono",monospace; font-size:11px; color:#b3261e}
 #login .hint2{margin-top:14px; font-size:11px; color:var(--ink-dim); line-height:1.5}
+#login .toggle2{margin-top:14px; font-size:12px; text-align:center}
+#login .toggle2 a{color:var(--cyan); cursor:pointer; text-decoration:none}
+#login .toggle2 a:hover{text-decoration:underline}
 #banner{position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:55;
   background:#fff4d6; border:1px solid #e0b34a; color:#5a4205; border-radius:8px; padding:8px 14px;
   font-family:"JetBrains Mono",monospace; font-size:11px; box-shadow:0 6px 20px rgba(20,40,80,.15); display:none}
@@ -313,13 +316,20 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   <div class="card">
     <h1>CIE Course Map</h1>
     <div class="sub">B.ENG CIVIL ENGINEERING // CIE 2568</div>
-    <p>Sign in to load your grades, notes, stars &amp; progress report.</p>
+    <p id="loginIntro">Sign in to load your grades, notes, stars &amp; progress report.</p>
     <label for="loginId">STUDENT ID</label>
     <input id="loginId" autocomplete="username" placeholder="e.g. 65010001"/>
+    <div id="regFields" style="display:none">
+      <label for="regName">FULL NAME</label>
+      <input id="regName" autocomplete="name" placeholder="e.g. Anan Suk"/>
+      <label for="regAdvisor">ADVISOR (optional)</label>
+      <input id="regAdvisor" placeholder="e.g. Dr. Pim"/>
+    </div>
     <label for="loginPw">PASSWORD</label>
     <input id="loginPw" type="password" autocomplete="current-password" placeholder="password"/>
     <button id="loginBtn">Sign in</button>
     <div class="err" id="loginErr"></div>
+    <div class="toggle2"><a id="toggleMode">New student? Create an account</a></div>
     <div class="hint2" id="loginHint"></div>
   </div>
 </div>
@@ -526,7 +536,7 @@ DATA.nodes.forEach(n=>{
   sel.addEventListener('click',e=>e.stopPropagation());
   sel.addEventListener('change',e=>{ e.stopPropagation(); setGrade(n.key,sel.value); });
   if(isElec(n)){
-    const setElec=(f,v)=>{ elec[n.key]=elec[n.key]||{}; if(v) elec[n.key][f]=v; else delete elec[n.key][f]; if(!Object.keys(elec[n.key]).length) delete elec[n.key]; saveElec(); syncCourse(n.key); };
+    const setElec=(f,v)=>{ elec[n.key]=elec[n.key]||{}; if(v) elec[n.key][f]=v; else delete elec[n.key][f]; if(!Object.keys(elec[n.key]).length) delete elec[n.key]; saveElec(); syncExtra(n.key); };
     el.querySelectorAll('.ecode,.ename').forEach(inp=>{ inp.addEventListener('mousedown',e=>e.stopPropagation()); inp.addEventListener('click',e=>e.stopPropagation()); });
     el.querySelector('.ecode').addEventListener('input',e=>setElec('code',e.target.value.trim()));
     el.querySelector('.ename').addEventListener('input',e=>setElec('name',e.target.value.trim()));
@@ -647,7 +657,7 @@ function clearHi(){
 let starsOnly=false;
 function toggleStar(key){
   if(stars[key]) delete stars[key]; else stars[key]=1;
-  saveStars(); syncCourse(key); nodeEl[key].classList.toggle('starred',!!stars[key]);
+  saveStars(); syncExtra(key); nodeEl[key].classList.toggle('starred',!!stars[key]);
   if(curPanel===key) syncPanelStar();
   if(starsOnly) applyFilters();
   updateCounts();
@@ -709,7 +719,7 @@ function applyGradeClass(key,g){
 }
 function setGrade(key,g){
   if(g) grades[key]=g; else delete grades[key];
-  saveGrades(); syncCourse(key); applyGradeClass(key,g); computeSummary();
+  saveGrades(); syncGrade(key); applyGradeClass(key,g); computeSummary();
 }
 // per-semester GPA data, shared by the on-screen panel and the PDF document
 function gpaData(){
@@ -894,7 +904,7 @@ function openPanel(key){
 $('pclose').addEventListener('click',()=>{ closePanelKeepGlow(); });   // close info, keep glow (click box/empty to clear)
 let t=null;
 $('pnotes').addEventListener('input',()=>{
-  if(!curPanel)return; notes[curPanel]=$('pnotes').value; saveNotes(); syncCourse(curPanel);
+  if(!curPanel)return; notes[curPanel]=$('pnotes').value; saveNotes(); syncExtra(curPanel);
   nodeEl[curPanel].classList.toggle('hasnote',!!$('pnotes').value.trim());
   $('psaved').textContent="saving…"; clearTimeout(t); t=setTimeout(()=>$('psaved').textContent="saved ✓",350);
 });
@@ -913,54 +923,53 @@ window.addEventListener('load',()=>{ fitBar(); setTimeout(fitBar,300); });
 fitBar();
 
 // ===========================================================================
-//  SYNC LAYER  —  Google Sheet backend via data.js (window.DB).
-//   login   : match student_id + password against the `students` tab
-//   load    : pull this student's `progress` rows, hydrate the in-memory state
-//   persist : every course edit upserts ONE progress row (create or update)
-//  Falls back to a per-student localStorage cache when the Sheet is unreachable.
+//  SYNC LAYER (v2)  —  Apps Script backend via data.js (window.API).
+//   login/register : server-side; login returns profile + grades + extras in ONE call
+//   persist        : grade -> setGrade (per-semester tab); star/note/elec -> setExtra;
+//                    name / advisor-comment -> setProfile
+//  Falls back to a per-student localStorage cache when the backend is unreachable.
 // ===========================================================================
 let OFFLINE = false;            // true when running off the localStorage cache
-const progIds = new Set();      // composite ids ("<sid>_<key>") already in the Sheet
-const PKEY = k => CURRENT.student_id + "_" + k;
-const HAS_DB = () => !!(window.DB && DB.configured);
+const HAS_API = () => !!(window.API && API.configured);
+const semOf = key => (DATA.sems[byKey[key].col].label || "").replace(/\s+/g,"");  // "Y1 S1" -> "Y1S1"
 
 function showBanner(msg){ const b=document.getElementById('banner'); if(!b)return;
   if(msg){ b.textContent=msg; b.classList.add('show'); } else { b.classList.remove('show'); } }
 
-// progress row built from the four per-course state objects
-function rowFor(key){
-  const e = elec[key] || {};
-  return { id: PKEY(key), student_id: CURRENT.student_id, course_key: key,
-    grade: grades[key] || "", starred: stars[key] ? "TRUE" : "FALSE",
-    note: notes[key] || "", elec_code: e.code || "", elec_name: e.name || "" };
+// ---- persist (debounced per key) ----
+const _gTimers={}, _eTimers={};
+function syncGrade(key){          // grade -> the course's per-semester tab
+  if(!key) return; writeCache();
+  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  clearTimeout(_gTimers[key]);
+  _gTimers[key]=setTimeout(()=>{
+    API.setGrade(CURRENT.student_id, semOf(key), key, grades[key]||"")
+      .catch(err=>{ console.warn("setGrade failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+  },350);
 }
-// upsert one course's row, debounced per course (so fast note typing batches)
-const _timers = {};
-function syncCourse(key){
-  if(!key) return;
-  writeCache();
-  if(!CURRENT || OFFLINE || !HAS_DB()) return;
-  clearTimeout(_timers[key]);
-  _timers[key] = setTimeout(()=>{
-    const row = rowFor(key);
-    const p = progIds.has(row.id) ? DB.progress.update(row.id, row)
-                                  : DB.progress.create(row).then(()=>{ progIds.add(row.id); });
-    Promise.resolve(p).catch(err=>{ console.warn("sync course failed:", err);
-      showBanner("⚠ sync failed — changes saved on this device only"); });
-  }, 400);
+function syncExtra(key){          // star / note / elective overrides -> extras tab
+  if(!key) return; writeCache();
+  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  const e=elec[key]||{};
+  const data={ starred: stars[key]?"TRUE":"FALSE", note: notes[key]||"", elec_code: e.code||"", elec_name: e.name||"" };
+  clearTimeout(_eTimers[key]);
+  _eTimers[key]=setTimeout(()=>{
+    API.setExtra(CURRENT.student_id, key, data)
+      .catch(err=>{ console.warn("setExtra failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+  },400);
 }
-// persist student name + advisor comment back to the `students` row
-let _stuTimer=null;
-function syncStudent(){
+let _pTimer=null;
+function syncStudent(){           // student name + advisor comment -> students row
   if(!CURRENT) return;
   writeCache(); try{ localStorage.setItem("cie_adv:"+CURRENT.student_id, advComment); }catch(e){}
-  if(OFFLINE || !HAS_DB()) return;
-  clearTimeout(_stuTimer);
-  _stuTimer=setTimeout(()=>{
-    DB.students.update(CURRENT.student_id, { name: stu.name||"", advisor_comment: advComment||"" })
-      .catch(err=>console.warn("sync student failed:", err));
-  }, 500);
+  if(OFFLINE || !HAS_API()) return;
+  clearTimeout(_pTimer);
+  _pTimer=setTimeout(()=>{
+    API.setProfile(CURRENT.student_id, { name: stu.name||"", advisor_comment: advComment||"" })
+      .catch(err=>console.warn("setProfile failed:",err));
+  },500);
 }
+function syncCourse(key){ syncExtra(key); }   // back-compat alias
 
 // push loaded state into the already-rendered DOM
 function rehydrate(){
@@ -984,74 +993,108 @@ function rehydrate(){
   }
 }
 
-// load this student's progress (Sheet first, localStorage cache on failure)
-async function loadProgress(){
-  let rows=null;
-  if(HAS_DB()){
-    try{ rows = await DB.progress.getAll(); }
-    catch(err){ console.warn("progress load failed:", err); }
-  }
-  if(rows){
-    OFFLINE=false; showBanner("");
-    rows.filter(r=>String(r.student_id)===String(CURRENT.student_id)).forEach(r=>{
-      const k=r.course_key; if(!k) return;
-      progIds.add(String(r.id||PKEY(k)));
-      if(r.grade) grades[k]=String(r.grade);
-      const st=String(r.starred).toUpperCase();
-      if(st==="TRUE"||st==="1") stars[k]=1;
-      if(r.note) notes[k]=String(r.note);
-      if(r.elec_code||r.elec_name){ elec[k]={}; if(r.elec_code)elec[k].code=String(r.elec_code); if(r.elec_name)elec[k].name=String(r.elec_name); }
-    });
-  } else {
-    OFFLINE=true; showBanner("⚠ offline — changes saved on this device only");
-    try{
-      Object.assign(grades, JSON.parse(localStorage.getItem("cie_grades:"+CURRENT.student_id)||"{}"));
-      Object.assign(stars,  JSON.parse(localStorage.getItem("cie_stars:"+CURRENT.student_id)||"{}"));
-      Object.assign(notes,  JSON.parse(localStorage.getItem("cie_notes:"+CURRENT.student_id)||"{}"));
-      Object.assign(elec,   JSON.parse(localStorage.getItem("cie_elec:"+CURRENT.student_id)||"{}"));
-    }catch(e){}
-  }
-  advComment = (CURRENT.advisor_comment!=null && CURRENT.advisor_comment!=="" )
-    ? String(CURRENT.advisor_comment)
-    : (function(){ try{ return localStorage.getItem("cie_adv:"+CURRENT.student_id)||""; }catch(e){ return ""; } })();
+// hydrate in-memory state from a login/register payload {profile, grades, extras}
+function applyPayload(p){
+  [grades,stars,notes,elec].forEach(o=>{ for(const k in o) delete o[k]; });
+  OFFLINE=false; showBanner("");
+  if(p && p.grades) Object.keys(p.grades).forEach(k=>{ if(p.grades[k]!=="") grades[k]=String(p.grades[k]); });
+  if(p && p.extras) p.extras.forEach(r=>{
+    const k=r.course_key; if(!k) return;
+    if(String(r.starred).toUpperCase()==="TRUE") stars[k]=1;
+    if(r.note) notes[k]=String(r.note);
+    if(r.elec_code||r.elec_name){ elec[k]={}; if(r.elec_code)elec[k].code=String(r.elec_code); if(r.elec_name)elec[k].name=String(r.elec_name); }
+  });
+  const prof=(p&&p.profile)||{};
+  CURRENT={ student_id: prof.student_id||CURRENT.student_id, name: prof.name||"",
+    advisor: prof.advisor||"", advisor_comment: prof.advisor_comment||"", role: prof.role||"student" };
+  advComment = CURRENT.advisor_comment || "";
   stu.name = CURRENT.name || ""; stu.id = CURRENT.student_id || "";
 }
 
-// ---- login ----
+// offline / unreachable backend: load this student's cached state from localStorage
+function loadOfflineCache(sid){
+  OFFLINE=true; showBanner("⚠ offline — changes saved on this device only");
+  try{
+    Object.assign(grades, JSON.parse(localStorage.getItem("cie_grades:"+sid)||"{}"));
+    Object.assign(stars,  JSON.parse(localStorage.getItem("cie_stars:"+sid)||"{}"));
+    Object.assign(notes,  JSON.parse(localStorage.getItem("cie_notes:"+sid)||"{}"));
+    Object.assign(elec,   JSON.parse(localStorage.getItem("cie_elec:"+sid)||"{}"));
+  }catch(e){}
+  advComment = (function(){ try{ return localStorage.getItem("cie_adv:"+sid)||""; }catch(e){ return ""; } })();
+  stu.id=sid; if(!stu.name) stu.name=sid;
+}
+
+// ---- login / register ----
 const loginEl=document.getElementById('login');
 const loginBtn=document.getElementById('loginBtn');
 const loginErr=document.getElementById('loginErr');
 const loginHint=document.getElementById('loginHint');
-if(!HAS_DB() && loginHint){
+const regFields=document.getElementById('regFields');
+const toggleMode=document.getElementById('toggleMode');
+const loginIntro=document.getElementById('loginIntro');
+let mode='login';   // 'login' | 'register'
+
+if(!HAS_API() && loginHint){
   loginHint.innerHTML="⚠ Backend not configured — set <b>GSHEET_API</b> in data.js. "+
     "You can still sign in offline with any ID; changes stay on this device.";
 }
+function setMode(m){
+  mode=m;
+  regFields.style.display = (m==='register') ? 'block' : 'none';
+  loginBtn.textContent   = (m==='register') ? 'Create account' : 'Sign in';
+  toggleMode.textContent = (m==='register') ? 'Have an account? Sign in' : 'New student? Create an account';
+  loginIntro.textContent = (m==='register')
+    ? 'Create your account to start tracking your grades.'
+    : 'Sign in to load your grades, notes, stars & progress report.';
+  loginErr.textContent='';
+}
+toggleMode.addEventListener('click',()=>setMode(mode==='login'?'register':'login'));
+
+function finishAuth(){ rehydrate(); loginEl.classList.add('hide'); }
+function authBusy(label){ loginErr.textContent=""; loginBtn.disabled=true; loginBtn.textContent=label; }
+function authReset(){ loginBtn.disabled=false; loginBtn.textContent = (mode==='register')?'Create account':'Sign in'; }
+
 async function doLogin(){
   const sid=document.getElementById('loginId').value.trim();
   const pw=document.getElementById('loginPw').value;
   if(!sid){ loginErr.textContent="Enter your student ID."; return; }
-  loginErr.textContent=""; loginBtn.disabled=true; loginBtn.textContent="Signing in…";
+  authBusy("Signing in…");
   try{
-    let row=null;
-    if(HAS_DB()){
-      const students = await DB.students.getAll();
-      row = students.find(s=>String(s.student_id)===sid && String(s.password)===String(pw));
-      if(!row){ loginErr.textContent="Wrong student ID or password."; loginBtn.disabled=false; loginBtn.textContent="Sign in"; return; }
+    if(HAS_API()){
+      const res=await API.login(sid,pw);
+      if(!res.ok){ loginErr.textContent="Wrong student ID or password."; authReset(); return; }
+      CURRENT={student_id:sid}; applyPayload(res);
     } else {
-      row = { id:sid, student_id:sid, password:pw, name:sid, advisor:"", advisor_comment:"", role:"student" };
+      CURRENT={student_id:sid}; loadOfflineCache(sid);
     }
-    CURRENT = row;
-    try{ sessionStorage.setItem('cie_sess', JSON.stringify({sid:row.student_id})); }catch(e){}
-    await loadProgress();
-    rehydrate();
-    loginEl.classList.add('hide');
-  }catch(err){
-    loginErr.textContent="Sign-in failed: "+(err&&err.message||err);
-    loginBtn.disabled=false; loginBtn.textContent="Sign in";
+    finishAuth();
+  }catch(err){                         // backend unreachable -> offline fallback
+    console.warn("login failed, offline:", err);
+    CURRENT={student_id:sid}; loadOfflineCache(sid); finishAuth();
   }
 }
-loginBtn.addEventListener('click',doLogin);
-document.getElementById('loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+async function doRegister(){
+  const sid=document.getElementById('loginId').value.trim();
+  const pw=document.getElementById('loginPw').value;
+  const name=document.getElementById('regName').value.trim();
+  const advisor=document.getElementById('regAdvisor').value.trim();
+  if(!sid){ loginErr.textContent="Choose a student ID."; return; }
+  if(!pw){ loginErr.textContent="Choose a password."; return; }
+  if(!HAS_API()){ loginErr.textContent="Backend not configured — can't register."; return; }
+  authBusy("Creating…");
+  try{
+    const res=await API.register({student_id:sid,name:name||sid,password:pw,advisor});
+    if(!res.ok){ loginErr.textContent=res.error||"Could not register."; authReset(); return; }
+    CURRENT={student_id:sid}; applyPayload(res); finishAuth();
+  }catch(err){
+    loginErr.textContent="Register failed: "+(err&&err.message||err); authReset();
+  }
+}
+
+const submitAuth=()=>{ mode==='register' ? doRegister() : doLogin(); };
+loginBtn.addEventListener('click',submitAuth);
+document.getElementById('loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') submitAuth(); });
 document.getElementById('loginId').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loginPw').focus(); });
 setTimeout(()=>{ const f=document.getElementById('loginId'); if(f) f.focus(); }, 50);
 
