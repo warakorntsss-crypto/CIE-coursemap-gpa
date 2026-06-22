@@ -321,7 +321,7 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   <div id="zlevel">100%</div>
 </div>
 
-<div class="hint">Hover/tap a course → it, its <b>prerequisites</b> &amp; what it <b>unlocks</b> glow.</div>
+<div class="hint">Click a course → it, its <b>prerequisites</b> &amp; what it <b>unlocks</b> glow. Click again → details.</div>
 
 <aside id="summary">
   <div class="sh"><b>Study Progress</b><span class="sx" id="sumClose">✕</span></div>
@@ -455,11 +455,9 @@ DATA.nodes.forEach(n=>{
   if(stars[n.key]) el.classList.add('starred');
   if(notes[n.key] && notes[n.key].trim()) el.classList.add('hasnote');
   map.appendChild(el); nodeEl[n.key]=el;
-  el.addEventListener('mouseenter',()=>{ if(HOVER && !pinned) highlight(n.key); });
-  el.addEventListener('mouseleave',()=>{ if(HOVER && !pinned) clearHi(); });
   el.addEventListener('click',e=>{ const t=e.target;
     if(t.classList.contains('star')||t.classList.contains('grade')||t.classList.contains('ecode')||t.classList.contains('ename')) return;
-    if(HOVER) selectNode(n.key); else tapNode(n.key);   // desktop: click=info; touch: two-step tap
+    tapNode(n.key);   // unified: 1st click = glow, 2nd click = info, again = clear
   });
   el.querySelector('.star').addEventListener('click',e=>{e.stopPropagation(); toggleStar(n.key);});
   const sel=el.querySelector('.grade'); sel.value=grades[n.key]||''; applyGradeClass(n.key,sel.value);
@@ -477,6 +475,8 @@ DATA.nodes.forEach(n=>{
 // ---- edge attach ordering ----
 const outE={}, inE={};
 DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t])return; (outE[e.s]=outE[e.s]||[]).push(e); (inE[e.t]=inE[e.t]||[]).push(e); });
+// order by vertical position of the other end: top target -> top out-slot, top source -> top in-slot.
+// keeps the fan non-crossing AND lets the closest box take the nearest slot (closest-first).
 const rk=k=>rowOf[k]+byKey[k].col*0.001;
 for(const k in outE) outE[k].sort((a,b)=>rk(a.t)-rk(b.t));
 for(const k in inE)  inE[k].sort((a,b)=>rk(a.s)-rk(b.s));
@@ -500,6 +500,9 @@ function roundPath(pts,r){
 // row-gap (GAP tall, between two row bands) is clear full-width. So: verticals live only
 // in gutters, horizontals live only in gutters or row-gaps -> zero box crossings.
 const gutLeft = c => PAD + c*COL_W + BOX_W;          // left edge of gutter right of col c
+// fixed attach slots: 4 positions per side (right=out, left=in), as fractions of BOX_H.
+const SLOTS=[0.2,0.4,0.6,0.8];
+const slotFracs=k=>{ const start=Math.floor((4-k)/2); return SLOTS.slice(start,start+k); };  // centered subset
 function gapIndexNear(y){                             // nearest global row-gap below a box row
   let gi=Math.round((y-BODY_Y-BOX_H-GAP/2)/ROW_H);
   return Math.max(0, Math.min(Math.max(0,maxRows-2), gi));
@@ -511,7 +514,7 @@ DATA.edges.forEach(e=>{
   const s=byKey[e.s], t=byKey[e.t], sp=pos[e.s], tp=pos[e.t];
   const ko=outE[e.s].length, io=outE[e.s].indexOf(e);
   const ki=inE[e.t].length,  ii=inE[e.t].indexOf(e);
-  const ay=sp.y+BOX_H*(io+1)/(ko+1), by=tp.y+BOX_H*(ii+1)/(ki+1);
+  const ay=sp.y+BOX_H*slotFracs(ko)[io], by=tp.y+BOX_H*slotFracs(ki)[ii];  // fixed slots: out=right, in=left
   const span=t.col-s.col;
   const inf={e,sp,tp,ay,by,span};
   if(span<=1){ inf.g1=s.col; }                       // single gutter (same col or adjacent)
@@ -526,12 +529,14 @@ Object.keys(GUT_GROUP).forEach(g=>{
   const list=GUT_GROUP[g];
   list.sort((a,b)=>(a.side===1?a.inf.ay:a.inf.by)-(b.side===1?b.inf.ay:b.inf.by));
   const n=list.length, step=Math.min(11,(GUT-16)/Math.max(1,n-1));
-  list.forEach((r,i)=>{ const x=gutLeft(+g)+8+i*step; if(r.side===1) r.inf.x1=x; else r.inf.x2=x; });
+  const x0=gutLeft(+g)+GUT/2-(n-1)*step/2;           // center the bundle in the gutter (middle of the gap)
+  list.forEach((r,i)=>{ const x=x0+i*step; if(r.side===1) r.inf.x1=x; else r.inf.x2=x; });
 });
 Object.keys(LANE_GROUP).forEach(gi=>{
   const list=LANE_GROUP[gi]; list.sort((a,b)=>a.ay-b.ay);
   const yTop=BODY_Y+(+gi)*ROW_H+BOX_H, n=list.length, step=Math.min(8,(GAP-12)/Math.max(1,n-1));
-  list.forEach((inf,i)=>{ inf.laneY=yTop+6+i*step; });
+  const y0=yTop+GAP/2-(n-1)*step/2;                  // center the lane bundle in the row-gap
+  list.forEach((inf,i)=>{ inf.laneY=y0+i*step; });
 });
 // pass 3: draw
 const wireMeta=[];
@@ -539,7 +544,9 @@ wireInfo.forEach(inf=>{
   const {e,sp,tp,ay,by,span}=inf;
   const sxR=sp.x+BOX_W, txL=tp.x, txR=tp.x+BOX_W;
   let pts;
-  if(span===0){                                      // same column: short hop in right gutter
+  if(span===1 && Math.abs(ay-by)<0.5){               // same row, slots aligned: straight line, no curve
+    pts=[[sxR,ay],[txL,by]];
+  }else if(span===0){                                // same column: short hop in right gutter
     pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txR,by]];
   }else if(span===1){                                // adjacent: one vertical in the gutter
     pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txL,by]];
@@ -823,7 +830,7 @@ function openPanel(key){
   $('pnotes').value=notes[key]||""; $('psaved').textContent=notes[key]?"saved":"";
   syncPanelStar(); panel.classList.add('open');
 }
-$('pclose').addEventListener('click',()=>{ if(HOVER) deselect(); else closePanelKeepGlow(); });
+$('pclose').addEventListener('click',()=>{ closePanelKeepGlow(); });   // close info, keep glow (click box/empty to clear)
 let t=null;
 $('pnotes').addEventListener('input',()=>{
   if(!curPanel)return; notes[curPanel]=$('pnotes').value; saveNotes();
