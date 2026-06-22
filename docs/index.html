@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5"/>
+<meta name="theme-color" content="#175ccc"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<title>CIE Civil Engineering — Interactive Course Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f7fb; --grid:rgba(59,110,180,.11); --grid2:rgba(59,110,180,.05);
+  --ink:#1c2a3a; --ink-dim:#54657a; --line:rgba(28,42,58,.18);
+  --cyan:#175ccc; --amber:#d97706; --amber-ink:#b45309; --panel-line:rgba(28,42,58,.15); --bar:60px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--bg); color:var(--ink); font-family:"Lexend",sans-serif; overflow:hidden;
+  background-image:
+    linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+    linear-gradient(var(--grid2) 1px,transparent 1px),linear-gradient(90deg,var(--grid2) 1px,transparent 1px);
+  background-size:120px 120px,120px 120px,24px 24px,24px 24px;
+  -webkit-text-size-adjust:100%;
+}
+/* ---- top bar ---- */
+header{
+  position:fixed; top:0; left:0; right:0; z-index:30;
+  display:flex; align-items:center; gap:14px 18px; flex-wrap:wrap;
+  padding:10px 18px; background:linear-gradient(180deg,rgba(255,255,255,.97),rgba(255,255,255,.92));
+  border-bottom:1px solid var(--panel-line); backdrop-filter:blur(4px);
+}
+.brand{display:flex; flex-direction:column; line-height:1.1}
+.brand b{font-family:"Lexend",sans-serif; font-weight:700; font-size:19px; letter-spacing:.2px; color:#14233a}
+.brand small{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--ink-dim); letter-spacing:.8px}
+.legend{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.lg{display:flex; align-items:center; gap:6px; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim);
+  cursor:pointer; user-select:none; border:1px solid transparent; border-radius:20px; padding:4px 9px; transition:.15s}
+.lg:hover{border-color:var(--panel-line); background:#fff}
+.lg.off{opacity:.38; text-decoration:line-through}
+.lg i{width:11px; height:11px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,.18)}
+.tools{display:flex; align-items:center; gap:9px; margin-left:auto; flex-wrap:wrap}
+.tools input[type=search]{background:#fff; border:1px solid var(--panel-line); color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:12px; padding:8px 10px; border-radius:6px; width:150px}
+.tools input::placeholder{color:#5f7187}
+.btn{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.5px; background:#fff; color:#44566b; border:1px solid var(--panel-line); padding:8px 11px; border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap}
+.btn:hover{color:var(--ink); border-color:var(--cyan)}
+.btn.on{color:#42300a; background:#fbbf24; border-color:#f59e0b; font-weight:600}
+.counts{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim); white-space:nowrap}
+.counts b{color:var(--amber-ink)}
+/* ---- scroll + map ---- */
+#scroll{position:absolute; left:0; right:0; bottom:0; top:var(--bar); overflow:auto; -webkit-overflow-scrolling:touch}
+#cols{position:sticky; top:0; height:56px; z-index:12; pointer-events:none}
+#cols .colhdr{
+  position:absolute; top:8px; height:42px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border:1px solid var(--panel-line); border-radius:7px;
+  background:linear-gradient(180deg,#ffffff,#f6f9fd); box-shadow:0 4px 14px rgba(20,40,80,.10);
+  font-family:"Lexend",sans-serif;
+}
+#cols .colhdr b{font-size:15px; font-weight:700; letter-spacing:.6px; color:#14233a; text-transform:uppercase}
+#cols .colhdr span{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--cyan)}
+#map{position:relative}
+#wires{position:absolute; left:0; top:0; pointer-events:none; overflow:visible}
+.node{
+  position:absolute; border-radius:8px; cursor:pointer;
+  background:var(--cf,#fff);
+  border:1px solid var(--cs,var(--line)); padding:8px 10px 8px 12px; overflow:hidden;
+  box-shadow:0 1px 3px rgba(20,40,80,.07);
+  transition:box-shadow .18s,border-color .18s,opacity .18s,transform .12s;
+}
+.node:hover{transform:translateY(-1px); box-shadow:0 4px 12px rgba(20,40,80,.14)}
+.node .code{font-family:"JetBrains Mono",monospace; font-weight:600; font-size:12px; color:#16243a; letter-spacing:.4px}
+.node .ecode{width:118px; font-family:"JetBrains Mono",monospace; font-weight:600; font-size:12px; color:#16243a; letter-spacing:.4px;
+  background:rgba(255,255,255,.65); border:1px dashed rgba(28,42,58,.30); border-radius:4px; padding:1px 5px}
+.node .ecode:hover{border-color:var(--cyan)}
+.node .ecode:focus{outline:none; border-style:solid; border-color:var(--cyan); background:#fff}
+.node .nm{font-size:11px; line-height:1.2; color:#41526a; margin-top:3px; height:26px; overflow:hidden}
+.node.elec .nm{height:13px; font-size:9.5px; opacity:.75; margin-top:2px}
+.node .ename{display:block; width:calc(100% - 4px); margin-top:3px; font-family:"Lexend",sans-serif; font-size:10px; color:var(--ink);
+  background:#fff; border:1px dashed rgba(28,42,58,.30); border-radius:4px; padding:3px 5px}
+.node .ename::placeholder{color:#5f7187; font-style:italic}
+.node .ename:hover{border-color:var(--cyan)}
+.node .ename:focus{outline:none; border-style:solid; border-color:var(--cyan)}
+.node .cr{position:absolute; left:16px; bottom:11px; font-family:"JetBrains Mono",monospace; font-size:10px; color:#4d5e72}
+.node .grade{position:absolute; right:7px; bottom:7px; width:60px; height:24px; padding:0 4px; cursor:pointer;
+  background:#fff; color:var(--ink); border:1px solid rgba(28,42,58,.25); border-radius:5px;
+  font-family:"JetBrains Mono",monospace; font-size:12px; font-weight:600; text-align:center; text-align-last:center; appearance:none; -webkit-appearance:none}
+.node .grade:hover{border-color:var(--cyan)}
+.node .grade:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
+.node.graded .grade{color:#1e7a2e; border-color:#3f9e52}
+.node.failed .grade{color:#b3261e; border-color:#d05c5c}
+.node.withdrawn .grade{color:#54657a; border-color:#93a3b4}
+.node.graded{box-shadow:inset 0 0 0 1px rgba(63,158,82,.40)}
+.node.failed{box-shadow:inset 0 0 0 1px rgba(208,92,92,.45)}
+.node .star{position:absolute; right:4px; top:3px; font-size:15px; line-height:1; color:#a8b7c7; cursor:pointer; transition:color .15s,transform .15s; padding:5px}
+.node .star:hover{transform:scale(1.2)}
+.node.starred .star{color:#f59e0b; text-shadow:0 0 7px rgba(245,158,11,.55)}
+.node .dot{position:absolute; left:6px; bottom:6px; width:6px; height:6px; border-radius:50%; background:var(--cyan); opacity:0; box-shadow:0 0 5px rgba(23,92,204,.7)}
+.node.hasnote .dot{opacity:.9}
+#map.dimmed .node{opacity:.16}
+.node.glow{opacity:1 !important; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan),0 6px 20px rgba(23,92,204,.30)}
+.node.glow.up{border-color:#3d77dd}
+.node.glow.down{border-color:var(--amber); box-shadow:0 0 0 1px var(--amber),0 6px 20px rgba(217,119,6,.28)}
+.node.glow.root{box-shadow:0 0 0 2px var(--cyan),0 8px 28px rgba(23,92,204,.45)}
+.node.selected{border-color:var(--amber); box-shadow:0 0 0 1px var(--amber),0 6px 16px rgba(217,119,6,.30)}
+.node.hidden{display:none}
+.node.faded{opacity:.08 !important}
+/* code-only overview (very low zoom): hide everything but the course code, centered + enlarged */
+#map.codeonly .node{display:flex; align-items:center; justify-content:center; padding:4px}
+#map.codeonly .node>.nm,#map.codeonly .node>.cr,#map.codeonly .node>.grade,
+#map.codeonly .node>.star,#map.codeonly .node>.dot,#map.codeonly .node>.ename{display:none}
+#map.codeonly .node>.code{font-size:10.5px; font-weight:700}
+#map.codeonly .node>.ecode{font-size:10.5px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
+/* FIT view: abbreviate the year-box credit ("21 Credit" -> "21 CR") */
+#cols .colhdr .u-short{display:none}
+#cols.codeonly .colhdr .u-long{display:none}
+#cols.codeonly .colhdr .u-short{display:inline}
+/* wires */
+.wire{fill:none; stroke:rgba(71,99,133,.38); stroke-width:1.4}
+.wire.co{stroke-dasharray:5 5}
+.wire.glow{stroke:var(--cyan); stroke-width:2.2; filter:url(#glow); opacity:1}
+.wire.glow.down{stroke:var(--amber)}
+#map.dimmed .wire:not(.glow){opacity:.06}
+/* ---- zoom controls ---- */
+#zoom{position:fixed; right:14px; bottom:14px; z-index:25; display:flex; flex-direction:column; gap:6px; align-items:stretch}
+#zoom button{width:40px; height:40px; font-size:16px; font-family:"JetBrains Mono",monospace; background:rgba(255,255,255,.95);
+  color:#44566b; border:1px solid var(--panel-line); border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(20,40,80,.10)}
+#zoom button:hover{border-color:var(--cyan); color:var(--ink)}
+#zoom .fit{font-size:11px; letter-spacing:.5px}
+#zlevel{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--ink-dim); text-align:center}
+/* ---- side panel ---- */
+#panel{position:fixed; top:0; right:0; height:100%; width:370px; max-width:92vw; z-index:40;
+  background:#fff; border-left:1px solid var(--panel-line);
+  box-shadow:-16px 0 44px rgba(20,40,80,.16); transform:translateX(102%);
+  transition:transform .28s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column}
+#panel.open{transform:translateX(0)}
+.ph{padding:18px 20px 14px; border-bottom:1px solid var(--panel-line); position:relative; background:linear-gradient(180deg,#f7fafd,#fff)}
+.ph .tag{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--cyan)}
+.ph h2{margin:6px 0 2px; font-family:"JetBrains Mono",monospace; font-size:20px; color:#14233a}
+.ph p{margin:2px 0 0; font-size:13px; color:var(--ink-dim)}
+.ph .x{position:absolute; top:12px; right:14px; cursor:pointer; color:var(--ink-dim); font-size:22px; line-height:1; padding:4px}
+.ph .x:hover{color:var(--ink)}
+.pbody{padding:16px 20px; overflow:auto; flex:1; -webkit-overflow-scrolling:touch}
+.meta{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px}
+.chip{font-family:"JetBrains Mono",monospace; font-size:11px; padding:4px 9px; border-radius:20px; border:1px solid var(--panel-line); color:var(--ink)}
+.sect{font-family:"Lexend",sans-serif; font-weight:600; text-transform:uppercase; letter-spacing:1px; font-size:12px; color:var(--cyan); margin:16px 0 8px}
+.desc{font-size:13px; line-height:1.55; color:var(--ink); background:rgba(23,92,204,.05); border:1px solid rgba(23,92,204,.20); border-radius:6px; padding:10px 12px}
+.prereq-list{display:flex; flex-direction:column; gap:6px}
+.prereq-list a{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink); text-decoration:none; border:1px solid var(--panel-line); border-radius:6px; padding:8px 10px; cursor:pointer; transition:.15s}
+.prereq-list a:hover{border-color:var(--cyan); color:#14233a; background:rgba(23,92,204,.06)}
+.prereq-list a span{color:var(--ink-dim)}
+.none{font-size:12px; color:var(--ink-dim); font-style:italic}
+.starbtn{display:inline-flex; align-items:center; gap:7px; cursor:pointer; margin-bottom:6px; font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink-dim); border:1px solid var(--panel-line); border-radius:6px; padding:9px 12px; user-select:none}
+.starbtn:hover{border-color:#f59e0b; color:var(--ink)}
+.starbtn.on{color:var(--amber-ink); border-color:#f59e0b}
+.starbtn b{font-size:15px}
+textarea{width:100%; min-height:140px; resize:vertical; margin-top:4px; background:#fbfcfe; border:1px solid var(--panel-line); border-radius:8px; color:var(--ink); font-family:"Lexend",sans-serif; font-size:13px; line-height:1.5; padding:11px 12px}
+textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
+.saved{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--ink-dim); margin-top:6px; height:12px}
+.hint{position:fixed; bottom:14px; left:18px; z-index:20; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim); background:rgba(255,255,255,.88); border:1px solid var(--panel-line); padding:5px 9px; border-radius:6px; max-width:50vw}
+.hint b{color:var(--cyan)}
+/* ---- summary / progress panel ---- */
+#summary{position:fixed; left:14px; bottom:14px; z-index:35; width:300px; max-width:80vw;
+  background:#fff; border:1px solid var(--panel-line);
+  border-radius:10px; box-shadow:0 14px 44px rgba(20,40,80,.20); padding:12px 14px 13px;
+  transform:translateY(140%); opacity:0; transition:transform .26s cubic-bezier(.4,0,.2,1),opacity .26s; pointer-events:none}
+#summary.open{transform:translateY(0); opacity:1; pointer-events:auto}
+#summary .sh{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px}
+#summary .sh b{font-family:"Lexend",sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.8px; font-size:14px; color:#14233a}
+#summary .sx{cursor:pointer; color:var(--ink-dim); font-size:16px; line-height:1; padding:2px 4px}
+#summary .sx:hover{color:var(--ink)}
+.sbig{font-family:"JetBrains Mono",monospace; font-size:24px; font-weight:600; color:var(--amber-ink); margin:2px 0 10px}
+.sbig small{font-size:11px; color:var(--ink-dim); font-weight:400}
+.srow{display:flex; align-items:baseline; gap:8px; padding:4px 0; border-top:1px solid rgba(28,42,58,.09); font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink-dim)}
+.srow span{flex:1; white-space:nowrap}
+.srow b{color:#14233a; font-size:14px; min-width:42px; text-align:right}
+.srow i{font-style:normal; color:var(--ink-dim); font-size:10px; min-width:42px; text-align:right}
+.srow.total{margin-top:3px; border-top:1px solid var(--panel-line)}
+.srow.total span{color:var(--cyan); font-weight:600}
+.srow.total b{color:var(--amber-ink)}
+#summary #sumBody{max-height:54vh; overflow:auto}
+/* ---- formal PDF document view ---- */
+#docview{position:fixed; inset:0; z-index:60; background:#d3dce8; overflow:auto; display:none; padding:30px 0}
+#docview.open{display:block}
+.doctools{position:fixed; top:14px; right:20px; z-index:61; display:flex; gap:8px}
+.doctools button{font-family:"JetBrains Mono",monospace; font-size:12px; padding:9px 13px; border-radius:7px; cursor:pointer; border:1px solid #b8c4d4; background:#fff; color:#1c2a3a}
+.doctools button:hover{border-color:var(--cyan)}
+.docpaper{background:#fff; color:#16202b; width:820px; max-width:96vw; margin:0 auto; padding:46px 52px 40px;
+  box-shadow:0 12px 40px rgba(20,40,80,.25); font-family:"Lexend",Arial,sans-serif; font-size:13px; line-height:1.45}
+.doc-head{text-align:center; border-bottom:2px solid #16202b; padding-bottom:12px; margin-bottom:14px}
+.doc-title{font-family:"Lexend",sans-serif; font-weight:700; font-size:21px; letter-spacing:.2px}
+.doc-sub{font-size:11px; color:#5a6675; margin-top:4px; letter-spacing:.4px}
+.doc-meta{display:flex; flex-wrap:wrap; gap:6px 26px; font-size:12px; margin:0 0 18px}
+.doc-meta label{color:#5a6675; margin-right:6px}
+.doc-meta input{border:none; border-bottom:1px solid #9aa6b4; font:inherit; font-size:12px; padding:2px 4px; min-width:160px; background:transparent; color:#16202b}
+.doc-meta input:focus{outline:none; border-bottom-color:var(--cyan)}
+.docsem{width:100%; border-collapse:collapse; margin:0 0 12px; break-inside:avoid}
+.docsem caption{caption-side:top; text-align:left; font-weight:700; font-size:13px; background:#eef2f7; border:1px solid #c7d0db; border-bottom:none; padding:6px 9px; letter-spacing:.3px}
+.docsem th,.docsem td{border:1px solid #c7d0db; padding:5px 9px; font-size:12px}
+.docsem th{background:#f6f8fb; text-align:left; font-weight:600; color:#384655}
+.docsem td.c,.docsem th.c{text-align:center; width:62px}
+.docsem td.r{text-align:right; font-weight:600}
+.docsem tfoot td{background:#f6f8fb; font-weight:700}
+.docsummary{border:2px solid #16202b; border-radius:6px; padding:12px 16px; margin:18px 0 14px; break-inside:avoid}
+.docsummary h3{margin:0 0 8px; font-family:"Lexend",sans-serif; text-transform:uppercase; letter-spacing:.6px; font-size:15px}
+.srow2{display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-top:1px solid #e0e6ee; font-size:13px}
+.srow2 b{font-size:15px}
+.srow2.big b{font-size:17px; color:#1f3a8a}
+.adv-comment{margin:14px 0 6px; break-inside:avoid}
+.adv-comment .lbl{font-weight:700; font-size:12px; margin-bottom:5px}
+.adv-comment textarea{width:100%; min-height:96px; border:1px solid #9aa6b4; border-radius:5px; padding:8px 10px; font:inherit; font-size:12px; resize:vertical; color:#16202b; background:#fff; box-shadow:none}
+.adv-comment textarea:focus{outline:none; border-color:var(--cyan)}
+.sigrow{display:flex; gap:40px; margin-top:30px; break-inside:avoid}
+.sigbox{flex:1; text-align:center; font-size:12px}
+.sigline{border-bottom:1px solid #16202b; height:46px; margin-bottom:6px}
+.sigbox b{display:block; font-size:12.5px}
+.sigbox span{color:#5a6675; font-size:11px}
+.doctools .docmode{background:#eef2f8}
+.doctools .docmode.on{background:var(--cyan); color:#fff; border-color:var(--cyan); font-weight:600}
+/* one-page compact layout */
+.docsummary.compact{display:flex; justify-content:center; padding:8px 12px; margin:12px 0 10px; font-size:13px}
+.docsummary.compact b{color:#1f3a8a}
+.compactgrid{display:flex; gap:10px; align-items:flex-start; margin:6px 0 8px}
+.cyear{flex:1; border:1px solid #c7d0db; border-radius:5px; overflow:hidden; font-size:10.5px}
+.cytitle{background:#16202b; color:#fff; font-family:"Lexend",sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.5px; font-size:13px; text-align:center; padding:4px}
+.cyhdr{background:#eef2f7; color:#384655; font-weight:700; font-size:9.5px; letter-spacing:.3px; padding:2px 6px; border-top:1px solid #d4dce6}
+.cyrow{display:flex; flex-wrap:nowrap; justify-content:space-between; gap:6px; padding:2px 6px; border-top:1px solid #eef2f7}
+.cyrow span{font-family:"JetBrains Mono",monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0}
+.cyrow b{flex:0 0 auto; font-weight:700; min-width:18px; text-align:right}
+.cygpa{padding:4px 6px; border-top:2px solid #16202b; background:#f6f8fb; font-weight:700; text-align:right; font-size:11px}
+.cygpa b{color:#1f3a8a; margin-left:4px}
+.compactpaper .sigrow{margin-top:18px}
+.compactpaper .adv-comment{margin:10px 0 6px}
+.compactpaper .adv-comment textarea{min-height:230px}
+.doc-warn{background:#fff4d6; border:1px solid #e0b34a; color:#5a4205;
+  border-radius:6px; padding:9px 12px; margin:0 0 14px; font-size:12px; line-height:1.45}
+.doc-warn b{color:#7a5800}
+@media print{
+  .doc-warn{display:none !important}
+  @page{ size:A4; margin:13mm }
+  html,body{height:auto; overflow:visible; background:#fff}
+  header,#scroll,#zoom,#panel,#summary,.hint,.doctools{display:none !important}
+  #docview{position:static; inset:auto; background:#fff; padding:0; overflow:visible; display:block !important}
+  .docpaper{box-shadow:none; width:auto; max-width:none; margin:0; padding:0}
+  .doc-meta input{border-bottom:1px solid #16202b}
+  .compactpaper{font-size:10px}
+  .compactgrid,.cyear,.sigrow,.docsummary,.compactpaper .doc-head{break-inside:avoid; page-break-inside:avoid}
+}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:#c3cfde;border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms !important; animation-duration:.01ms !important}
+}
+/* ---- mobile ---- */
+/* phone, either orientation: tighter year header + header that scrolls away on scroll-down */
+@media (max-width:720px),(max-height:520px){
+  #cols{height:48px}
+  #cols .colhdr{top:2px; height:42px; flex-direction:row; gap:7px}  /* slightly thicker; year + credit on one row */
+  #cols .colhdr b{font-size:10.5px}     /* year label, 25% smaller than before (14px) */
+  #cols .colhdr span{font-size:9px}     /* credit sits to the right of the year */
+  header{position:static}   /* not fixed: top bar scrolls away with the content */
+  #scroll{top:0}            /* header now lives at the top of the scroll flow; year box stays sticky */
+}
+@media (max-width:720px){
+  header{gap:8px 12px; padding:8px 12px}
+  .brand b{font-size:16px} .brand small{font-size:9px}
+  .legend{order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px}
+  .lg{flex:0 0 auto}
+  .tools{margin-left:0; width:100%; justify-content:space-between}
+  .tools input[type=search]{flex:1; min-width:0; width:auto}
+  #panel{width:100%; max-width:100%}
+  .hint{display:none}
+  #zoom button{width:44px; height:44px}
+  .node .star{padding:4px; font-size:14px; right:2px; top:2px}
+  /* compact 1-page recap: fixed readable width on phone, modal scrolls sideways */
+  .compactpaper{width:720px; max-width:none}
+}
+/* ---- login overlay + sync banner (Google Sheet backend) ---- */
+#login{position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+  background:linear-gradient(160deg,#eaf1fb,#f4f7fb); padding:20px}
+#login.hide{display:none}
+#login .card{width:340px; max-width:92vw; background:#fff; border:1px solid var(--panel-line);
+  border-radius:14px; box-shadow:0 18px 50px rgba(20,40,80,.20); padding:26px 24px 22px}
+#login h1{margin:0 0 2px; font-family:"Lexend",sans-serif; font-size:21px; color:#14233a}
+#login .sub{margin:0 0 16px; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.8px; color:var(--cyan)}
+#login p{margin:0 0 14px; font-size:12.5px; color:var(--ink-dim); line-height:1.5}
+#login label{display:block; font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.5px;
+  color:var(--ink-dim); margin:12px 0 5px}
+#login input{width:100%; background:#fbfcfe; border:1px solid var(--panel-line); border-radius:8px;
+  color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:14px; padding:11px 12px}
+#login input:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
+#login button{margin-top:18px; width:100%; background:var(--cyan); color:#fff; border:0; border-radius:8px;
+  font-family:"Lexend",sans-serif; font-weight:600; font-size:14px; padding:12px; cursor:pointer}
+#login button:hover{background:#1450b0}
+#login button:disabled{opacity:.6; cursor:default}
+#login .err{margin-top:12px; min-height:16px; font-family:"JetBrains Mono",monospace; font-size:11px; color:#b3261e}
+#login .hint2{margin-top:14px; font-size:11px; color:var(--ink-dim); line-height:1.5}
+#banner{position:fixed; left:50%; transform:translateX(-50%); bottom:14px; z-index:55;
+  background:#fff4d6; border:1px solid #e0b34a; color:#5a4205; border-radius:8px; padding:8px 14px;
+  font-family:"JetBrains Mono",monospace; font-size:11px; box-shadow:0 6px 20px rgba(20,40,80,.15); display:none}
+#banner.show{display:block}
+#whoami{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim); display:flex; align-items:center; gap:6px; white-space:nowrap}
+#whoami b{color:#14233a}
+#whoami a{color:var(--cyan); cursor:pointer; text-decoration:none}
+#whoami a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="login">
+  <div class="card">
+    <h1>CIE Course Map</h1>
+    <div class="sub">B.ENG CIVIL ENGINEERING // CIE 2568</div>
+    <p>Sign in to load your grades, notes, stars &amp; progress report.</p>
+    <label for="loginId">STUDENT ID</label>
+    <input id="loginId" autocomplete="username" placeholder="e.g. 65010001"/>
+    <label for="loginPw">PASSWORD</label>
+    <input id="loginPw" type="password" autocomplete="current-password" placeholder="password"/>
+    <button id="loginBtn">Sign in</button>
+    <div class="err" id="loginErr"></div>
+    <div class="hint2" id="loginHint"></div>
+  </div>
+</div>
+<div id="banner"></div>
+<div id="scroll">
+  <header>
+    <div class="brand">
+      <b>Civil Engineering &middot; Course Map</b>
+      <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; 149 Credit</small>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div class="tools">
+      <input type="search" id="search" placeholder="search…" autocomplete="off"/>
+      <button class="btn" id="starsBtn">★ starred</button>
+      <button class="btn" id="sumBtn">▣ progress</button>
+      <button class="btn" id="pdfBtn">⭳ save pdf</button>
+      <span class="counts" id="counts"></span>
+      <span id="whoami"></span>
+    </div>
+  </header>
+  <div id="cols"></div>
+  <div id="map">
+    <svg id="wires">
+      <defs>
+        <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="3" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <marker id="arw" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="rgba(71,99,133,.55)"/>
+        </marker>
+        <marker id="arwC" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#175ccc"/>
+        </marker>
+        <marker id="arwD" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M0,0 L10,5 L0,10 L2.5,5 z" fill="#d97706"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+</div>
+
+<div id="zoom">
+  <button class="fit" id="zfit" title="Fit whole map">FIT</button>
+  <button id="zin" title="Zoom in">+</button>
+  <button id="zout" title="Zoom out">&minus;</button>
+  <button id="zone" title="Reset 1:1">1:1</button>
+  <div id="zlevel">100%</div>
+</div>
+
+<div class="hint">Click a course → it, its <b>prerequisites</b> &amp; what it <b>unlocks</b> glow. Click again → details.</div>
+
+<aside id="summary">
+  <div class="sh"><b>Study Progress</b><span class="sx" id="sumClose">✕</span></div>
+  <div id="sumBody"></div>
+</aside>
+
+<div id="docview">
+  <div class="doctools">
+    <button id="docFull" class="docmode on">Detailed</button>
+    <button id="docCompact" class="docmode">1-Page</button>
+    <button id="docPrint">🖨 Print / Save PDF</button>
+    <button id="docClose">✕ Close</button>
+  </div>
+  <div class="docpaper" id="docPaper"></div>
+</div>
+
+<aside id="panel">
+  <div class="ph">
+    <span class="x" id="pclose">✕</span>
+    <div class="tag" id="ptag"></div>
+    <h2 id="pcode"></h2>
+    <p id="pname"></p>
+  </div>
+  <div class="pbody">
+    <div class="meta" id="pmeta"></div>
+    <div class="starbtn" id="pstar"><b>☆</b><span id="pstartxt">Mark as interested</span></div>
+    <div class="sect">Description</div>
+    <div class="desc" id="pdesc"></div>
+    <div class="sect">Prerequisites</div>
+    <div class="prereq-list" id="pprereq"></div>
+    <div class="sect">Unlocks</div>
+    <div class="prereq-list" id="punlocks"></div>
+    <div class="sect">My notes</div>
+    <textarea id="pnotes" placeholder="Write notes about this subject…"></textarea>
+    <div class="saved" id="psaved"></div>
+  </div>
+</aside>
+
+<script src="data.js"></script>
+<script>
+const DATA = {"nodes": [{"key": "ENGL101", "col": 0, "short": "ENGL101", "name": "Fundamental English 1", "cr": 3, "cat": "ge", "desc": "Basic listening, speaking, reading and writing skills in English for varied cultural contexts."}, {"key": "CHEM162", "col": 0, "short": "CHEM162", "name": "General Chemistry for Engineers", "cr": 3, "cat": "core", "desc": "Stoichiometry, atomic structure, chemical bonding, states of matter and reaction rates."}, {"key": "CHEM167", "col": 0, "short": "CHEM167", "name": "General Chemistry Laboratory", "cr": 1, "cat": "lab", "desc": "Basic chemistry lab experiments: gas constants, titrations and polymer synthesis."}, {"key": "MATH161", "col": 0, "short": "MATH161", "name": "Calculus for Engineering 1", "cr": 3, "cat": "core", "desc": "Vector algebra and derivatives and integrals of functions of one variable."}, {"key": "PHYS105", "col": 0, "short": "PHYS105", "name": "Physics for Engineering 1", "cr": 3, "cat": "core", "desc": "Fundamental physics: mechanics, matter, sound and thermodynamics."}, {"key": "PHYS115", "col": 0, "short": "PHYS115", "name": "Physics Laboratory 1", "cr": 1, "cat": "lab", "desc": "Lab experiments in mechanics, thermal physics and mechanical waves."}, {"key": "ENGR103", "col": 0, "short": "ENGR103", "name": "Engineering Materials", "cr": 3, "cat": "core", "desc": "Classification, microstructure and mechanical properties of engineering materials."}, {"key": "ENGR104", "col": 0, "short": "ENGR104", "name": "Engineering Drawing", "cr": 3, "cat": "core", "desc": "Orthographic projection, dimensioning and 3D engineering drawing."}, {"key": "ENGR191", "col": 0, "short": "ENGR191", "name": "Principle of Being Professional", "cr": 1, "cat": "ge", "desc": "Preparation for professional practice: discipline, institutional loyalty and ethics."}, {"key": "ENGL102", "col": 1, "short": "ENGL102", "name": "Fundamental English 2", "cr": 3, "cat": "ge", "desc": "Advanced English communication skills for complex social contexts and life-long learning."}, {"key": "PG104", "col": 1, "short": "PG104", "name": "Citizenship", "cr": 3, "cat": "ge", "desc": "Concept of citizenship, social awareness and positive attitudes for peaceful conflict resolution."}, {"key": "MATH162", "col": 1, "short": "MATH162", "name": "Calculus for Engineering 2", "cr": 3, "cat": "core", "desc": "First and second order differential equations, partial derivatives and multiple integrals."}, {"key": "PHYS106", "col": 1, "short": "PHYS106", "name": "Physics for Engineering 2", "cr": 3, "cat": "core", "desc": "Electromagnetism, DC and AC circuits, optics and introductory modern physics."}, {"key": "PHYS116", "col": 1, "short": "PHYS116", "name": "Physics Laboratory 2", "cr": 1, "cat": "lab", "desc": "Lab experiments in electricity, optics and modern physics."}, {"key": "CE102", "col": 1, "short": "CE102", "name": "Civil Engineering Fundamentals", "cr": 2, "cat": "major", "desc": "Introduction to civil engineering disciplines, professional responsibilities and sustainable development."}, {"key": "ENGR106", "col": 1, "short": "ENGR106", "name": "Workshop Technology", "cr": 1, "cat": "lab", "desc": "Workshop safety, hand tools, machining and rapid prototyping."}, {"key": "ENGR107", "col": 1, "short": "ENGR107", "name": "Engineering Mechanics 1", "cr": 3, "cat": "core", "desc": "Principles of statics and dynamics, force systems and equilibrium."}, {"key": "GE_ELEC1", "col": 1, "short": "GE Elec", "name": "Innovative Co-creator (GE)", "cr": 3, "cat": "elec", "desc": "Innovative Co-creator general-education course — chosen from the approved GE list."}, {"key": "ENGL201", "col": 2, "short": "ENGL201", "name": "Critical Reading & Effective Writing", "cr": 3, "cat": "ge", "desc": "Analytical reading from various sources and effective writing on topics of interest."}, {"key": "CS100", "col": 2, "short": "CS100", "name": "Information Technology & Modern Life", "cr": 3, "cat": "ge", "desc": "Computer usage, online collaboration, productivity software and IT security."}, {"key": "GEOL275", "col": 2, "short": "GEOL275", "name": "Geology for Engineers", "cr": 3, "cat": "core", "desc": "Minerals, rocks and geological processes relevant to civil engineering site investigations."}, {"key": "MATH261", "col": 2, "short": "MATH261", "name": "Calculus for Engineering 3", "cr": 3, "cat": "core", "desc": "Advanced calculus: vector calculus, complex variables and Fourier series."}, {"key": "STAT263", "col": 2, "short": "STAT263", "name": "Elementary Statistics", "cr": 3, "cat": "core", "desc": "Basic statistics, probability distributions, hypothesis testing and regression analysis."}, {"key": "CE211", "col": 2, "short": "CE211", "name": "Strength of Materials 1", "cr": 3, "cat": "major", "desc": "Analysis of stresses, strains, torsion and beam deflections in structural materials."}, {"key": "CE261", "col": 2, "short": "CE261", "name": "Hydraulics", "cr": 3, "cat": "major", "desc": "Fluid properties, hydrostatics and mechanics of flow in pipes and open channels."}, {"key": "ENGL225", "col": 3, "short": "ENGL225", "name": "English in Science & Technology", "cr": 3, "cat": "ge", "desc": "English language functions and skills for communication in science and technology contexts."}, {"key": "MATH362", "col": 3, "short": "MATH362", "name": "Applied Differential Equations", "cr": 3, "cat": "core", "desc": "Ordinary and partial differential equations, Laplace transforms and series solutions for engineering."}, {"key": "CE212", "col": 3, "short": "CE212", "name": "Theory & Analysis of Structures", "cr": 3, "cat": "major", "desc": "Analysis of determinate and indeterminate structures using classical and matrix methods."}, {"key": "CE216", "col": 3, "short": "CE216", "name": "Structural Materials & Testing", "cr": 4, "cat": "lab", "desc": "Concrete technology, structural material properties and standard material testing methods."}, {"key": "CE262", "col": 3, "short": "CE262", "name": "Hydraulic Models & Testing", "cr": 1, "cat": "lab", "desc": "Experiments on fluid measurements, flow through orifices and pump performance."}, {"key": "ENGR201", "col": 3, "short": "ENGR201", "name": "Computer Programming for Engineers", "cr": 3, "cat": "core", "desc": "High-level computer programming applied to solving engineering problems."}, {"key": "GE_ELEC2", "col": 3, "short": "GE Elec", "name": "General Education Elective", "cr": 3, "cat": "elec", "desc": "General-education elective — chosen from the approved GE list."}, {"key": "CE292", "col": 4, "short": "CE292", "name": "Diff. Eq. & Numerical Methods (CE)", "cr": 3, "cat": "major", "desc": "Numerical methods and application of differential equations to civil engineering systems."}, {"key": "CE311", "col": 4, "short": "CE311", "name": "Steel & Timber Structure Design", "cr": 4, "cat": "major", "desc": "Design of structural steel and timber members and connections."}, {"key": "CE336", "col": 4, "short": "CE336", "name": "Transportation Systems Engineering", "cr": 3, "cat": "major", "desc": "Multimodal transportation systems, planning principles and freight logistics infrastructure."}, {"key": "CE363", "col": 4, "short": "CE363", "name": "Engineering Hydrology", "cr": 3, "cat": "major", "desc": "Hydrologic cycle, precipitation, streamflow and groundwater hydrology."}, {"key": "CE371", "col": 4, "short": "CE371", "name": "Soil Mechanics", "cr": 3, "cat": "major", "desc": "Fundamental soil mechanics: classification, settlement analysis and shear strength."}, {"key": "CE372", "col": 4, "short": "CE372", "name": "Engineering Soil Tests", "cr": 1, "cat": "lab", "desc": "Standard lab and field tests for engineering properties of soils."}, {"key": "GE_ELEC3", "col": 4, "short": "GE Elec", "name": "General Education Elective", "cr": 3, "cat": "elec", "desc": "General-education elective — chosen from the approved GE list."}, {"key": "CE313", "col": 5, "short": "CE313", "name": "Reinforced Concrete Design", "cr": 4, "cat": "major", "desc": "Design of reinforced concrete beams, slabs, columns and foundations by ultimate strength methods."}, {"key": "CE333", "col": 5, "short": "CE333", "name": "Highway Engineering", "cr": 3, "cat": "major", "desc": "Highway planning, geometric design, traffic characteristics and pavement materials."}, {"key": "CE334", "col": 5, "short": "CE334", "name": "Highway Engineering Laboratory", "cr": 1, "cat": "lab", "desc": "Lab tests on road materials: soils, aggregates and bituminous mixtures."}, {"key": "CE343", "col": 5, "short": "CE343", "name": "Surveying for Civil Engineering", "cr": 4, "cat": "major", "desc": "Distance and angle measurement, leveling, topographic mapping and field-camp practice."}, {"key": "CE364", "col": 5, "short": "CE364", "name": "Water Resource Engineering", "cr": 3, "cat": "major", "desc": "Planning and design of water resource systems: reservoirs, dams and pipe networks."}, {"key": "CE374", "col": 5, "short": "CE374", "name": "Geotech. Eng. & Building Foundations", "cr": 3, "cat": "major", "desc": "Design of shallow and deep foundations, lateral earth pressure and slope stability."}, {"key": "FREE_ELEC1", "col": 5, "short": "Free Elec", "name": "Free Elective", "cr": 3, "cat": "elec", "desc": "Free elective — any course offered within the university."}, {"key": "CE400", "col": 6, "short": "CE400", "name": "Training in Civil Engineering", "cr": 3, "cat": "lab", "desc": "Supervised professional training in engineering organizations (min. 270 hours)."}, {"key": "CE413", "col": 7, "short": "CE413", "name": "Reinforced Concrete Building Design", "cr": 4, "cat": "major", "desc": "Design of reinforced concrete buildings including wind and seismic analysis."}, {"key": "CE451", "col": 7, "short": "CE451", "name": "Construction Techniques & Management", "cr": 3, "cat": "major", "desc": "Construction project management, cost estimation, scheduling and engineering economics."}, {"key": "MAJ_ELEC1", "col": 7, "short": "Major Elec", "name": "Major Elective", "cr": 3, "cat": "elec", "desc": "Major elective — advanced civil-engineering topic (e.g. Rail Engineering, BIM) from the approved list."}, {"key": "FREE_ELEC2", "col": 7, "short": "Free Elec", "name": "Free Elective", "cr": 3, "cat": "elec", "desc": "Free elective — any course offered within the university."}, {"key": "ENGR192", "col": 8, "short": "ENGR192", "name": "Skills for Professionalism & Entrep.", "cr": 1, "cat": "ge", "desc": "Professional and entrepreneurial skills including safety consciousness and moral awareness."}, {"key": "ENGR194", "col": 8, "short": "ENGR194", "name": "Values for Professional Entrepreneur", "cr": 1, "cat": "ge", "desc": "Characters and values for becoming a successful professional entrepreneur."}, {"key": "DESIGN_DEV", "col": 8, "short": "CE491-498", "name": "Civil Eng. Design Development", "cr": 3, "cat": "elec", "desc": "A course from the Civil Engineering Design Development category (CE 491-498)."}, {"key": "MAJ_ELEC2", "col": 8, "short": "Major Elec", "name": "Major Elective", "cr": 3, "cat": "elec", "desc": "Major elective — advanced civil-engineering topic (e.g. Rail Engineering, BIM) from the approved list."}], "edges": [{"s": "MATH161", "t": "MATH162", "co": false}, {"s": "MATH162", "t": "MATH261", "co": false}, {"s": "MATH261", "t": "MATH362", "co": false}, {"s": "PHYS105", "t": "PHYS106", "co": false}, {"s": "PHYS115", "t": "PHYS116", "co": false}, {"s": "CHEM162", "t": "CHEM167", "co": true}, {"s": "PHYS105", "t": "ENGR107", "co": false}, {"s": "MATH161", "t": "ENGR107", "co": false}, {"s": "ENGR107", "t": "CE211", "co": false}, {"s": "MATH162", "t": "CE292", "co": false}, {"s": "CE211", "t": "CE212", "co": false}, {"s": "ENGR103", "t": "CE216", "co": false}, {"s": "CE211", "t": "CE216", "co": false}, {"s": "ENGR104", "t": "CE311", "co": false}, {"s": "CE212", "t": "CE311", "co": false}, {"s": "CE216", "t": "CE313", "co": false}, {"s": "CE212", "t": "CE313", "co": false}, {"s": "CE313", "t": "CE413", "co": false}, {"s": "GEOL275", "t": "CE371", "co": false}, {"s": "CE261", "t": "CE371", "co": false}, {"s": "CE211", "t": "CE371", "co": false}, {"s": "CE371", "t": "CE372", "co": false}, {"s": "CE371", "t": "CE374", "co": false}, {"s": "CE372", "t": "CE374", "co": false}, {"s": "ENGR107", "t": "CE261", "co": false}, {"s": "CE261", "t": "CE262", "co": false}, {"s": "STAT263", "t": "CE363", "co": false}, {"s": "CE261", "t": "CE363", "co": false}, {"s": "CE363", "t": "CE364", "co": false}, {"s": "MATH162", "t": "CE343", "co": false}, {"s": "STAT263", "t": "CE343", "co": false}, {"s": "CE371", "t": "CE333", "co": false}, {"s": "CE372", "t": "CE334", "co": false}, {"s": "CE333", "t": "CE334", "co": false}, {"s": "CE313", "t": "CE451", "co": false}, {"s": "CE333", "t": "CE451", "co": false}, {"s": "ENGL101", "t": "ENGL102", "co": false}, {"s": "ENGL102", "t": "ENGL201", "co": false}, {"s": "ENGL102", "t": "ENGL225", "co": false}], "cats": {"ge": {"fill": "#DAE8FC", "stroke": "#6C8EBF", "label": "General Education"}, "core": {"fill": "#D5E8D4", "stroke": "#82B366", "label": "Core (Math/Sci/Basic Eng)"}, "major": {"fill": "#FFE6CC", "stroke": "#D79B00", "label": "Civil Major"}, "lab": {"fill": "#FFF2CC", "stroke": "#D6B656", "label": "Lab / Testing / Training"}, "elec": {"fill": "#F5F5F5", "stroke": "#999999", "label": "Elective (placeholder)"}}, "sems": [{"label": "Y1 S1", "cr": 21}, {"label": "Y1 S2", "cr": 22}, {"label": "Y2 S1", "cr": 21}, {"label": "Y2 S2", "cr": 20}, {"label": "Y3 S1", "cr": 20}, {"label": "Y3 S2", "cr": 21}, {"label": "Summer", "cr": 3}, {"label": "Y4 S1", "cr": 13}, {"label": "Y4 S2", "cr": 8}]};
+// ===========================================================================
+//  Multi-student state. These objects start EMPTY and are filled, after login,
+//  from the Google Sheet (see SYNC LAYER at the bottom). localStorage is kept
+//  only as a per-student offline cache. Each edit upserts ONE `progress` row.
+// ===========================================================================
+let CURRENT = null;     // logged-in student row (set on login)
+const stars  = {};      // {course_key: 1}
+const notes  = {};      // {course_key: "text"}
+const grades = {};      // {course_key: "A"}
+const elec   = {};      // {course_key: {code, name}}  elective code/name overrides
+const stu    = {};      // {name, id}  shown on the PDF
+let advComment = "";    // academic advisor's comment (PDF)
+const cacheKey = b => b + ":" + (CURRENT ? CURRENT.student_id : "_");
+const writeCache = () => { try {
+  localStorage.setItem(cacheKey("cie_stars"),  JSON.stringify(stars));
+  localStorage.setItem(cacheKey("cie_notes"),  JSON.stringify(notes));
+  localStorage.setItem(cacheKey("cie_grades"), JSON.stringify(grades));
+  localStorage.setItem(cacheKey("cie_elec"),   JSON.stringify(elec));
+} catch (e) {} };
+// save* keep the old names/call-sites; now they just refresh the local cache.
+// The Sheet write happens via syncCourse(key), called right after each save*.
+const saveStars=writeCache, saveNotes=writeCache, saveGrades=writeCache, saveElec=writeCache;
+const isElec=n=>n.cat==='elec';
+const elecCode=n=>(elec[n.key]&&elec[n.key].code)||n.short;          // displayed/registered code
+const elecName=n=>(elec[n.key]&&elec[n.key].name)||'';               // student-entered actual name
+
+// ---- geometry ----
+const COL_W=232, BOX_W=172, BOX_H=104, GAP=44, PAD=28, BODY_Y=14;
+const ROW_H=BOX_H+GAP, GUT=COL_W-BOX_W;
+const map=document.getElementById('map'), wires=document.getElementById('wires'), colsBar=document.getElementById('cols');
+const scroll=document.getElementById('scroll'), header=document.querySelector('header');
+const byKey={}; DATA.nodes.forEach(n=>byKey[n.key]=n);
+const NCOL=DATA.sems.length;
+const HOVER=window.matchMedia('(hover:hover)').matches;   // false on touch screens
+
+// adjacency
+const prereqsOf={}, unlocksOf={};
+DATA.edges.forEach(e=>{ (prereqsOf[e.t]=prereqsOf[e.t]||[]).push(e.s); (unlocksOf[e.s]=unlocksOf[e.s]||[]).push(e.t); });
+function closure(start, adj){
+  const seen=new Set(), stack=[...(adj[start]||[])];
+  while(stack.length){const x=stack.pop(); if(seen.has(x))continue; seen.add(x); (adj[x]||[]).forEach(p=>stack.push(p));}
+  return seen;
+}
+const ancCache={}, descCache={};
+const ancestors=k=>ancCache[k]||(ancCache[k]=closure(k,prereqsOf));
+const descendants=k=>descCache[k]||(descCache[k]=closure(k,unlocksOf));
+
+// ---- barycenter ordering (vertical moves to cut crossings) ----
+const order=[]; for(let c=0;c<NCOL;c++) order[c]=[];
+DATA.nodes.forEach(n=>order[n.col].push(n.key));
+function posIndex(){const m={}; for(let c=0;c<NCOL;c++) order[c].forEach((k,i)=>m[k]=i); return m;}
+function sweep(dir){
+  const idx=posIndex(); const range=dir>0?[...Array(NCOL).keys()]:[...Array(NCOL).keys()].reverse();
+  for(const c of range){
+    const adjCol=c-dir; if(adjCol<0||adjCol>=NCOL) continue;
+    const bary={};
+    order[c].forEach((k,i)=>{
+      const nbrs=[...(prereqsOf[k]||[]),...(unlocksOf[k]||[])].filter(x=>byKey[x]&&byKey[x].col===adjCol);
+      bary[k]= nbrs.length? nbrs.reduce((s,x)=>s+idx[x],0)/nbrs.length : i;
+    });
+    order[c].sort((a,b)=>bary[a]-bary[b]);
+  }
+}
+for(let s=0;s<6;s++){ sweep(1); sweep(-1); }
+
+// ---- positions ----
+const pos={}, rowOf={};
+for(let c=0;c<NCOL;c++) order[c].forEach((k,i)=>{ rowOf[k]=i; pos[k]={x:PAD+c*COL_W, y:BODY_Y+i*ROW_H}; });
+let maxRows=0; for(let c=0;c<NCOL;c++) maxRows=Math.max(maxRows,order[c].length);
+const mapW=PAD*2+(NCOL-1)*COL_W+BOX_W, mapH=BODY_Y+maxRows*ROW_H+10;
+map.style.width=mapW+"px"; map.style.height=mapH+"px"; colsBar.style.width=mapW+"px";
+wires.setAttribute("width",mapW); wires.setAttribute("height",mapH); wires.setAttribute("viewBox","0 0 "+mapW+" "+mapH);
+
+// ---- sticky column headers ----
+DATA.sems.forEach((s,i)=>{
+  const h=document.createElement('div'); h.className='colhdr';
+  h.style.left=(PAD+i*COL_W)+"px"; h.style.width=BOX_W+"px";
+  h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>'; colsBar.appendChild(h);
+});
+
+// ---- nodes ----
+const GRADES=['A','B+','B','C+','C','D+','D','F','W'];
+const GRADE_OPTS=GRADES.map(g=>'<option value="'+g+'">'+g+'</option>').join('');
+const nodeEl={};
+DATA.nodes.forEach(n=>{
+  const c=DATA.cats[n.cat];
+  const el=document.createElement('div'); el.className='node'; el.dataset.key=n.key;
+  el.style.left=pos[n.key].x+"px"; el.style.top=pos[n.key].y+"px";
+  el.style.width=BOX_W+"px"; el.style.height=BOX_H+"px";
+  el.style.setProperty('--cf',c.fill); el.style.setProperty('--cs',c.stroke);
+  const codeHtml = isElec(n)
+    ? '<input class="ecode" title="edit registered course code" value="'+esc(elecCode(n))+'">'
+    : '<div class="code">'+n.short+'</div>';
+  const elecNameHtml = isElec(n)
+    ? '<input class="ename" title="actual course name" placeholder="actual course name…" value="'+esc(elecName(n))+'">'
+    : '';
+  el.innerHTML=codeHtml+'<div class="nm">'+n.name+'</div>'+elecNameHtml+
+    '<div class="cr">'+n.cr+' Credit</div>'+
+    '<select class="grade" title="grade received"><option value="">-</option>'+GRADE_OPTS+'</select>'+
+    '<div class="star" title="star">★</div><div class="dot"></div>';
+  if(isElec(n)) el.classList.add('elec');
+  if(stars[n.key]) el.classList.add('starred');
+  if(notes[n.key] && notes[n.key].trim()) el.classList.add('hasnote');
+  map.appendChild(el); nodeEl[n.key]=el;
+  el.addEventListener('click',e=>{ const t=e.target;
+    if(t.classList.contains('star')||t.classList.contains('grade')||t.classList.contains('ecode')||t.classList.contains('ename')) return;
+    tapNode(n.key);   // unified: 1st click = glow, 2nd click = info, again = clear
+  });
+  el.querySelector('.star').addEventListener('click',e=>{e.stopPropagation(); toggleStar(n.key);});
+  const sel=el.querySelector('.grade'); sel.value=grades[n.key]||''; applyGradeClass(n.key,sel.value);
+  sel.addEventListener('mousedown',e=>e.stopPropagation());
+  sel.addEventListener('click',e=>e.stopPropagation());
+  sel.addEventListener('change',e=>{ e.stopPropagation(); setGrade(n.key,sel.value); });
+  if(isElec(n)){
+    const setElec=(f,v)=>{ elec[n.key]=elec[n.key]||{}; if(v) elec[n.key][f]=v; else delete elec[n.key][f]; if(!Object.keys(elec[n.key]).length) delete elec[n.key]; saveElec(); syncCourse(n.key); };
+    el.querySelectorAll('.ecode,.ename').forEach(inp=>{ inp.addEventListener('mousedown',e=>e.stopPropagation()); inp.addEventListener('click',e=>e.stopPropagation()); });
+    el.querySelector('.ecode').addEventListener('input',e=>setElec('code',e.target.value.trim()));
+    el.querySelector('.ename').addEventListener('input',e=>setElec('name',e.target.value.trim()));
+  }
+});
+
+// ---- edge attach ordering ----
+const outE={}, inE={};
+DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t])return; (outE[e.s]=outE[e.s]||[]).push(e); (inE[e.t]=inE[e.t]||[]).push(e); });
+// order by vertical position of the other end: top target -> top out-slot, top source -> top in-slot.
+// keeps the fan non-crossing AND lets the closest box take the nearest slot (closest-first).
+const rk=k=>rowOf[k]+byKey[k].col*0.001;
+for(const k in outE) outE[k].sort((a,b)=>rk(a.t)-rk(b.t));
+for(const k in inE)  inE[k].sort((a,b)=>rk(a.s)-rk(b.s));
+
+// ---- rounded orthogonal path ----
+function roundPath(pts,r){
+  if(pts.length<2) return "M"+pts[0][0]+","+pts[0][1];
+  let d="M"+pts[0][0]+","+pts[0][1];
+  for(let i=1;i<pts.length-1;i++){
+    const p0=pts[i-1],p1=pts[i],p2=pts[i+1];
+    const d1=Math.hypot(p1[0]-p0[0],p1[1]-p0[1]), d2=Math.hypot(p2[0]-p1[0],p2[1]-p1[1]);
+    const rr=Math.max(2,Math.min(r,d1/2,d2/2));
+    const u1=[(p0[0]-p1[0])/(d1||1),(p0[1]-p1[1])/(d1||1)], u2=[(p2[0]-p1[0])/(d2||1),(p2[1]-p1[1])/(d2||1)];
+    d+=" L"+(p1[0]+u1[0]*rr)+","+(p1[1]+u1[1]*rr)+" Q"+p1[0]+","+p1[1]+" "+(p1[0]+u2[0]*rr)+","+(p1[1]+u2[1]*rr);
+  }
+  const L=pts[pts.length-1]; d+=" L"+L[0]+","+L[1]; return d;
+}
+
+// ---- deterministic no-cross orthogonal router ----
+// Grid invariant: every column gutter (GUT wide) is clear full-height; every global
+// row-gap (GAP tall, between two row bands) is clear full-width. So: verticals live only
+// in gutters, horizontals live only in gutters or row-gaps -> zero box crossings.
+const gutLeft = c => PAD + c*COL_W + BOX_W;          // left edge of gutter right of col c
+// fixed attach slots: 4 positions per side (right=out, left=in), as fractions of BOX_H.
+const SLOTS=[0.2,0.4,0.6,0.8];
+const slotFracs=k=>{ const start=Math.floor((4-k)/2); return SLOTS.slice(start,start+k); };  // centered subset
+function gapIndexNear(y){                             // nearest global row-gap below a box row
+  let gi=Math.round((y-BODY_Y-BOX_H-GAP/2)/ROW_H);
+  return Math.max(0, Math.min(Math.max(0,maxRows-2), gi));
+}
+// pass 1: compute attach points + which gutter(s)/lane each edge wants
+const wireInfo=[]; const GUT_GROUP={}, LANE_GROUP={};
+DATA.edges.forEach(e=>{
+  if(!byKey[e.s]||!byKey[e.t]) return;
+  const s=byKey[e.s], t=byKey[e.t], sp=pos[e.s], tp=pos[e.t];
+  const ko=outE[e.s].length, io=outE[e.s].indexOf(e);
+  const ki=inE[e.t].length,  ii=inE[e.t].indexOf(e);
+  const ay=sp.y+BOX_H*slotFracs(ko)[io], by=tp.y+BOX_H*slotFracs(ki)[ii];  // fixed slots: out=right, in=left
+  const span=t.col-s.col;
+  const inf={e,sp,tp,ay,by,span};
+  if(span<=1){ inf.g1=s.col; }                       // single gutter (same col or adjacent)
+  else { inf.g1=s.col; inf.g2=t.col-1; inf.gap=gapIndexNear((ay+by)/2); }
+  wireInfo.push(inf);
+  (GUT_GROUP[inf.g1]=GUT_GROUP[inf.g1]||[]).push({inf,side:1});
+  if(inf.g2!=null) (GUT_GROUP[inf.g2]=GUT_GROUP[inf.g2]||[]).push({inf,side:2});
+  if(inf.gap!=null) (LANE_GROUP[inf.gap]=LANE_GROUP[inf.gap]||[]).push(inf);
+});
+// pass 2: assign a distinct x-slot per gutter and y-slot per lane so wires never coincide
+Object.keys(GUT_GROUP).forEach(g=>{
+  const list=GUT_GROUP[g];
+  list.sort((a,b)=>(a.side===1?a.inf.ay:a.inf.by)-(b.side===1?b.inf.ay:b.inf.by));
+  const n=list.length, step=Math.min(11,(GUT-16)/Math.max(1,n-1));
+  const x0=gutLeft(+g)+GUT/2-(n-1)*step/2;           // center the bundle in the gutter (middle of the gap)
+  list.forEach((r,i)=>{ const x=x0+i*step; if(r.side===1) r.inf.x1=x; else r.inf.x2=x; });
+});
+Object.keys(LANE_GROUP).forEach(gi=>{
+  const list=LANE_GROUP[gi]; list.sort((a,b)=>a.ay-b.ay);
+  const yTop=BODY_Y+(+gi)*ROW_H+BOX_H, n=list.length, step=Math.min(8,(GAP-12)/Math.max(1,n-1));
+  const y0=yTop+GAP/2-(n-1)*step/2;                  // center the lane bundle in the row-gap
+  list.forEach((inf,i)=>{ inf.laneY=y0+i*step; });
+});
+// pass 3: draw
+const wireMeta=[];
+wireInfo.forEach(inf=>{
+  const {e,sp,tp,ay,by,span}=inf;
+  const sxR=sp.x+BOX_W, txL=tp.x, txR=tp.x+BOX_W;
+  let pts;
+  if(span===1 && Math.abs(ay-by)<0.5){               // same row, slots aligned: straight line, no curve
+    pts=[[sxR,ay],[txL,by]];
+  }else if(span===0){                                // same column: short hop in right gutter
+    pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txR,by]];
+  }else if(span===1){                                // adjacent: one vertical in the gutter
+    pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txL,by]];
+  }else{                                             // span>=2: gutter -> row-gap lane -> gutter
+    pts=[[sxR,ay],[inf.x1,ay],[inf.x1,inf.laneY],[inf.x2,inf.laneY],[inf.x2,by],[txL,by]];
+  }
+  const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+  p.setAttribute("d",roundPath(pts,6)); p.setAttribute("class","wire"+(e.co?" co":""));
+  p.setAttribute("marker-end","url(#arw)");
+  wires.appendChild(p); wireMeta.push({el:p,s:e.s,t:e.t});
+});
+
+// ---- highlight both ways ----
+let pinned=null;
+function highlight(key){
+  const up=ancestors(key), down=descendants(key), set=new Set([key,...up,...down]);
+  map.classList.add('dimmed');
+  up.forEach(k=>nodeEl[k]&&nodeEl[k].classList.add('glow','up'));
+  down.forEach(k=>nodeEl[k]&&nodeEl[k].classList.add('glow','down'));
+  nodeEl[key].classList.add('glow','root');
+  wireMeta.forEach(w=>{
+    if(set.has(w.s)&&set.has(w.t)){
+      w.el.classList.add('glow');
+      const isDown=down.has(w.t)&&(w.s===key||down.has(w.s));
+      if(isDown) w.el.classList.add('down');
+      w.el.setAttribute('marker-end', isDown?'url(#arwD)':'url(#arwC)');  // recolor arrowhead
+    }
+  });
+}
+function clearHi(){
+  map.classList.remove('dimmed');
+  document.querySelectorAll('.node.glow').forEach(n=>n.classList.remove('glow','root','up','down'));
+  wireMeta.forEach(w=>{ w.el.classList.remove('glow','down'); w.el.setAttribute('marker-end','url(#arw)'); });
+}
+
+// ---- stars ----
+let starsOnly=false;
+function toggleStar(key){
+  if(stars[key]) delete stars[key]; else stars[key]=1;
+  saveStars(); syncCourse(key); nodeEl[key].classList.toggle('starred',!!stars[key]);
+  if(curPanel===key) syncPanelStar();
+  if(starsOnly) applyFilters();
+  updateCounts();
+}
+const starsBtn=document.getElementById('starsBtn');
+starsBtn.addEventListener('click',()=>{ starsOnly=!starsOnly; starsBtn.classList.toggle('on',starsOnly); applyFilters(); });
+
+// ---- category filter (legend chips) ----
+const activeCats=new Set(Object.keys(DATA.cats));
+const legend=document.getElementById('legend');
+Object.keys(DATA.cats).forEach(k=>{
+  const c=DATA.cats[k]; const d=document.createElement('div'); d.className='lg'; d.dataset.cat=k;
+  d.innerHTML='<i style="background:'+c.stroke+'"></i>'+c.label;
+  d.addEventListener('click',()=>{
+    if(activeCats.has(k)) activeCats.delete(k); else activeCats.add(k);
+    d.classList.toggle('off',!activeCats.has(k)); applyFilters();
+  });
+  legend.appendChild(d);
+});
+function applyFilters(){
+  DATA.nodes.forEach(n=>{
+    const off=!activeCats.has(n.cat) || (starsOnly && !stars[n.key]);
+    nodeEl[n.key].classList.toggle('hidden',off);
+  });
+  wireMeta.forEach(w=>{
+    const hide=nodeEl[w.s].classList.contains('hidden')||nodeEl[w.t].classList.contains('hidden');
+    w.el.style.display=hide?'none':'';
+  });
+}
+
+// ---- search ----
+const search=document.getElementById('search');
+search.addEventListener('input',()=>{
+  const q=search.value.trim().toLowerCase();
+  DATA.nodes.forEach(n=>{
+    const hit=!q||n.short.toLowerCase().includes(q)||n.name.toLowerCase().includes(q)||n.key.toLowerCase().includes(q);
+    nodeEl[n.key].classList.toggle('faded',!hit);
+  });
+});
+
+// ---- counts ----
+const counts=document.getElementById('counts');
+function updateCounts(){
+  const ks=Object.keys(stars); let cr=0; ks.forEach(k=>{if(byKey[k])cr+=byKey[k].cr;});
+  counts.innerHTML='<b>'+ks.length+'</b>★ &middot; '+cr+'cr';
+}
+
+// ---- grades + GPA summary (CMU scale: A4 B+3.5 B3 C+2.5 C2 D+1.5 D1 F0; W excluded) ----
+const GPOINTS={A:4,'B+':3.5,B:3,'C+':2.5,C:2,'D+':1.5,D:1,F:0};
+const PASSING=new Set(['A','B+','B','C+','C','D+','D']);  // counts toward credits studied
+const TOTAL_CR=DATA.sems.reduce((s,x)=>s+x.cr,0);
+function semLabel(col){ const l=DATA.sems[col].label; if(/summer/i.test(l)) return 'Summer';
+  const m=l.match(/Y(\d)\s*S(\d)/i); return m?('Year '+m[1]+' Semester '+m[2]):l; }
+function applyGradeClass(key,g){
+  const el=nodeEl[key]; if(!el) return;
+  el.classList.toggle('graded', !!g && g!=='W' && g!=='F');
+  el.classList.toggle('failed', g==='F');
+  el.classList.toggle('withdrawn', g==='W');
+}
+function setGrade(key,g){
+  if(g) grades[key]=g; else delete grades[key];
+  saveGrades(); syncCourse(key); applyGradeClass(key,g); computeSummary();
+}
+// per-semester GPA data, shared by the on-screen panel and the PDF document
+function gpaData(){
+  const rows=[]; let tNum=0,tDen=0,cred=0;
+  for(let c=0;c<DATA.sems.length;c++){
+    let num=0,den=0;
+    DATA.nodes.filter(n=>n.col===c).forEach(n=>{
+      const g=grades[n.key]; if(!g||g==='W') return;     // W & blank: no points, no credit
+      num+=GPOINTS[g]*n.cr; den+=n.cr;
+      if(PASSING.has(g)) cred+=n.cr;                       // credits studied = A..D only
+    });
+    tNum+=num; tDen+=den;
+    rows.push({col:c, label:semLabel(c), gpa:den?(num/den).toFixed(2):'—', den});
+  }
+  return {rows, total:tDen?(tNum/tDen).toFixed(2):'—', tDen, cred};
+}
+const summary=document.getElementById('summary');
+document.getElementById('sumBtn').addEventListener('click',()=>{ summary.classList.toggle('open'); });
+document.getElementById('sumClose').addEventListener('click',()=>summary.classList.remove('open'));
+function computeSummary(){
+  const d=gpaData();
+  const rows=d.rows.map(r=>'<div class="srow"><span>'+r.label+'</span><b>'+r.gpa+'</b><i>'+r.den+' cr</i></div>').join('');
+  document.getElementById('sumBody').innerHTML=
+    '<div class="sbig">'+d.cred+'<small> / '+TOTAL_CR+' credits studied</small></div>'+rows+
+    '<div class="srow total"><span>Total GPA</span><b>'+d.total+'</b><i>'+d.tDen+' cr</i></div>';
+}
+
+// ---- formal PDF document (course list + summary + advisor comment + signatures) ----
+const docview=document.getElementById('docview');
+function esc(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+// in-app webviews (LINE, Facebook, Instagram, etc.) usually can't run window.print() / save PDF
+const INAPP=/\b(Line|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Twitter|TikTok)\b/i.test(navigator.userAgent);
+function warnHtml(){ return INAPP
+  ? '<div class="doc-warn">⚠ You opened this from an in-app browser (e.g. <b>LINE</b>), which can’t save PDF. '+
+    'Tap the <b>⋯</b> / share menu and choose <b>“Open in browser”</b> (Safari / Chrome), then press Save PDF.</div>'
+  : ''; }
+const codeFor=n=>isElec(n)?elecCode(n):n.short;                       // registered/displayed code
+const titleFor=n=>isElec(n)?(elecName(n)||n.name):n.name;            // actual name if student filled it
+function docHead(today){
+  return '<div class="doc-head"><div class="doc-title">B.Eng. Civil Engineering (International Program)</div>'+
+    '<div class="doc-sub">Curriculum CIE 2568 &middot; '+TOTAL_CR+' Credits &middot; Academic Progress Report</div></div>'+
+    '<div class="doc-meta"><div><label>Student Name:</label><input id="docName" value="'+esc(stu.name)+'"></div>'+
+    '<div><label>Student ID:</label><input id="docID" value="'+esc(stu.id)+'"></div>'+
+    '<div><label>Date:</label> '+today+'</div></div>';
+}
+function sigRow(){
+  return '<div class="sigrow">'+
+    '<div class="sigbox"><div class="sigline"></div><b>Student</b><span>Signature / Date</span></div>'+
+    '<div class="sigbox"><div class="sigline"></div><b>Academic Advisor</b><span>Signature / Date</span></div></div>';
+}
+// year-column helpers for the 1-page layout (Summer counts as Year 3)
+function yearOfCol(c){ const l=DATA.sems[c].label; const m=l.match(/Y(\d)/i); return m?+m[1]:(/summer/i.test(l)?3:0); }
+function buildFull(today){
+  const d=gpaData();
+  let sems='';
+  for(let c=0;c<DATA.sems.length;c++){
+    const rowsHtml=DATA.nodes.filter(n=>n.col===c).map(n=>{
+      const g=grades[n.key]||'-';
+      return '<tr><td>'+esc(codeFor(n))+'</td><td>'+esc(titleFor(n))+'</td><td class="c">'+n.cr+'</td><td class="c">'+g+'</td></tr>';
+    }).join('');
+    const r=d.rows[c];
+    sems+='<table class="docsem"><caption>'+r.label+' &mdash; '+DATA.sems[c].cr+' Credit</caption>'+
+      '<thead><tr><th>Code</th><th>Course Title</th><th class="c">Credit</th><th class="c">Grade</th></tr></thead>'+
+      '<tbody>'+rowsHtml+'</tbody>'+
+      '<tfoot><tr><td colspan="2" class="r">Semester GPA</td><td class="c">'+r.den+'</td><td class="c">'+r.gpa+'</td></tr></tfoot>'+
+      '</table>';
+  }
+  return docHead(today)+sems+
+    '<div class="docsummary"><h3>Summary</h3>'+
+      '<div class="srow2 big"><span>Total credits studied (passing grade A&ndash;D)</span><b>'+d.cred+' / '+TOTAL_CR+'</b></div>'+
+      '<div class="srow2 big"><span>Cumulative GPA</span><b>'+d.total+'</b></div></div>'+
+    '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
+      '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
+    sigRow();
+}
+function buildCompact(today){
+  const d=gpaData();
+  let cols='';
+  for(let y=1;y<=4;y++){
+    const yc=[]; for(let c=0;c<DATA.sems.length;c++) if(yearOfCol(c)===y) yc.push(c);
+    let num=0,den=0, body='';
+    yc.forEach(c=>{
+      body+='<div class="cyhdr">'+DATA.sems[c].label+'</div>';
+      DATA.nodes.filter(n=>n.col===c).forEach(n=>{
+        const gv=grades[n.key], g=gv||'-';
+        if(gv&&gv!=='W'){ num+=GPOINTS[gv]*n.cr; den+=n.cr; }
+        body+='<div class="cyrow"><span>'+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
+      });
+    });
+    const ygpa=den?(num/den).toFixed(2):'—';
+    cols+='<div class="cyear"><div class="cytitle">Year '+y+'</div>'+body+
+      '<div class="cygpa">Year GPA <b>'+ygpa+'</b></div></div>';
+  }
+  return docHead(today)+
+    '<div class="compactgrid">'+cols+'</div>'+
+    '<div class="docsummary compact"><span><b>Credits studied:</b> '+d.cred+' / '+TOTAL_CR+
+      ' &nbsp;&middot;&nbsp; <b>Cumulative GPA:</b> '+d.total+'</span></div>'+
+    '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
+      '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
+    sigRow();
+}
+let docMode='full';
+function buildDoc(mode){
+  docMode = mode||docMode;
+  const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('docPaper').className='docpaper'+(docMode==='compact'?' compactpaper':'');
+  document.getElementById('docPaper').innerHTML = warnHtml()+(docMode==='compact'?buildCompact(today):buildFull(today));
+  document.getElementById('docFull').classList.toggle('on',docMode==='full');
+  document.getElementById('docCompact').classList.toggle('on',docMode==='compact');
+  // rebind persisted fields
+  const nm=document.getElementById('docName'), id=document.getElementById('docID'), cm=document.getElementById('docComment');
+  if(nm) nm.addEventListener('input',()=>{ stu.name=nm.value; syncStudent(); });
+  if(id) id.addEventListener('input',()=>{ stu.id=id.value; syncStudent(); });
+  if(cm) cm.addEventListener('input',()=>{ advComment=cm.value; syncStudent(); });
+}
+document.getElementById('pdfBtn').addEventListener('click',()=>{ buildDoc('full'); docview.classList.add('open'); });
+document.getElementById('docFull').addEventListener('click',()=>buildDoc('full'));
+document.getElementById('docCompact').addEventListener('click',()=>buildDoc('compact'));
+document.getElementById('docClose').addEventListener('click',()=>docview.classList.remove('open'));
+document.getElementById('docPrint').addEventListener('click',()=>{
+  if(INAPP){ const w=document.querySelector('.doc-warn'); if(w){ w.scrollIntoView({block:'center'}); w.animate?w.animate([{opacity:.4},{opacity:1}],{duration:500,iterations:2}):0; } }
+  try{ window.print(); }catch(e){}
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') docview.classList.remove('open'); });
+
+// ---- zoom (CSS zoom keeps sticky header working) ----
+let z=1;
+function setZoom(v){ z=Math.max(0.2,Math.min(2,v)); map.style.zoom=z; colsBar.style.zoom=z;
+  map.classList.toggle('codeonly', z<0.45);   // tiny zoom: show course code only
+  colsBar.classList.toggle('codeonly', z<0.45);  // ...and abbreviate the year-box credit
+  document.getElementById('zlevel').textContent=Math.round(z*100)+'%'; }
+document.getElementById('zin').onclick=()=>setZoom(z*1.2);
+document.getElementById('zout').onclick=()=>setZoom(z/1.2);
+document.getElementById('zone').onclick=()=>{ setZoom(1); };
+document.getElementById('zfit').onclick=()=>{
+  const w=scroll.clientWidth-16, h=scroll.clientHeight-16;
+  // phone (portrait OR landscape): fitting all 9 columns = unreadable (~0.2).
+  const phone = window.innerWidth<=720 || (window.innerHeight<=520 && window.innerWidth<=950);
+  if(phone){
+    setZoom(0.25);   // whole-map overview; codeonly kicks in (<0.45) so only course codes show
+  } else {
+    setZoom(Math.min(w/mapW, h/(mapH+56)));
+  }
+  scroll.scrollTo({left:0,top:0});
+};
+
+// ---- side panel + pin-select ----
+let curPanel=null;
+const panel=document.getElementById('panel'); const $=id=>document.getElementById(id);
+function selectNode(key){ pinned=key; clearHi(); highlight(key); openPanel(key); }
+function deselect(){ pinned=null; clearHi(); panel.classList.remove('open'); curPanel=null;
+  document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected')); }
+function closePanelKeepGlow(){ panel.classList.remove('open'); curPanel=null;
+  document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected')); }   // glow/pin stays
+// touch (no hover): 1st tap = glow only; 2nd tap same course = info; tapping it again with info open, or empty space, clears
+function tapNode(key){
+  if(pinned===key){
+    if(curPanel===key) deselect();        // info already open → clear all
+    else openPanel(key);                  // glow already shown → reveal info (glow stays)
+  } else {
+    closePanelKeepGlow();                  // switch to a different course
+    pinned=key; clearHi(); highlight(key); // glow only, no panel yet
+  }
+}
+map.addEventListener('click',e=>{ if(!e.target.closest('.node')) deselect(); });   // tap empty space clears
+function openPanel(key){
+  curPanel=key; const n=byKey[key], c=DATA.cats[n.cat];
+  document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected'));
+  nodeEl[key].classList.add('selected');
+  $('ptag').textContent=c.label; $('pcode').textContent=n.short; $('pname').textContent=n.name;
+  $('pmeta').innerHTML='<span class="chip" style="border-color:'+c.stroke+';background:'+c.fill+'">'+n.key+'</span>'+
+    '<span class="chip">'+n.cr+' credits</span><span class="chip">'+DATA.sems[n.col].label+'</span>';
+  $('pdesc').textContent=n.desc||"Description not available in source.";
+  const pr=(prereqsOf[key]||[]).filter(k=>byKey[k]);
+  $('pprereq').innerHTML=pr.length?pr.map(k=>'<a data-go="'+k+'">'+byKey[k].short+' <span>— '+byKey[k].name+'</span></a>').join(''):'<div class="none">No prerequisites — entry-level course.</div>';
+  const un=(unlocksOf[key]||[]).filter(k=>byKey[k]);
+  $('punlocks').innerHTML=un.length?un.map(k=>'<a data-go="'+k+'">'+byKey[k].short+' <span>— '+byKey[k].name+'</span></a>').join(''):'<div class="none">Does not unlock a later course directly.</div>';
+  panel.querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',()=>selectNode(a.dataset.go)));
+  $('pnotes').value=notes[key]||""; $('psaved').textContent=notes[key]?"saved":"";
+  syncPanelStar(); panel.classList.add('open');
+}
+$('pclose').addEventListener('click',()=>{ closePanelKeepGlow(); });   // close info, keep glow (click box/empty to clear)
+let t=null;
+$('pnotes').addEventListener('input',()=>{
+  if(!curPanel)return; notes[curPanel]=$('pnotes').value; saveNotes(); syncCourse(curPanel);
+  nodeEl[curPanel].classList.toggle('hasnote',!!$('pnotes').value.trim());
+  $('psaved').textContent="saving…"; clearTimeout(t); t=setTimeout(()=>$('psaved').textContent="saved ✓",350);
+});
+$('pstar').addEventListener('click',()=>{ if(curPanel) toggleStar(curPanel); });
+function syncPanelStar(){
+  const on=!!stars[curPanel]; $('pstar').classList.toggle('on',on);
+  $('pstar').querySelector('b').textContent=on?'★':'☆';
+  $('pstartxt').textContent=on?'Interested — starred':'Mark as interested';
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') deselect(); });
+
+// ---- measure header so column heads never overlap it ----
+function fitBar(){ document.documentElement.style.setProperty('--bar',(header.offsetHeight)+'px'); }
+window.addEventListener('resize',fitBar);
+window.addEventListener('load',()=>{ fitBar(); setTimeout(fitBar,300); });
+fitBar();
+
+// ===========================================================================
+//  SYNC LAYER  —  Google Sheet backend via data.js (window.DB).
+//   login   : match student_id + password against the `students` tab
+//   load    : pull this student's `progress` rows, hydrate the in-memory state
+//   persist : every course edit upserts ONE progress row (create or update)
+//  Falls back to a per-student localStorage cache when the Sheet is unreachable.
+// ===========================================================================
+let OFFLINE = false;            // true when running off the localStorage cache
+const progIds = new Set();      // composite ids ("<sid>_<key>") already in the Sheet
+const PKEY = k => CURRENT.student_id + "_" + k;
+const HAS_DB = () => !!(window.DB && DB.configured);
+
+function showBanner(msg){ const b=document.getElementById('banner'); if(!b)return;
+  if(msg){ b.textContent=msg; b.classList.add('show'); } else { b.classList.remove('show'); } }
+
+// progress row built from the four per-course state objects
+function rowFor(key){
+  const e = elec[key] || {};
+  return { id: PKEY(key), student_id: CURRENT.student_id, course_key: key,
+    grade: grades[key] || "", starred: stars[key] ? "TRUE" : "FALSE",
+    note: notes[key] || "", elec_code: e.code || "", elec_name: e.name || "" };
+}
+// upsert one course's row, debounced per course (so fast note typing batches)
+const _timers = {};
+function syncCourse(key){
+  if(!key) return;
+  writeCache();
+  if(!CURRENT || OFFLINE || !HAS_DB()) return;
+  clearTimeout(_timers[key]);
+  _timers[key] = setTimeout(()=>{
+    const row = rowFor(key);
+    const p = progIds.has(row.id) ? DB.progress.update(row.id, row)
+                                  : DB.progress.create(row).then(()=>{ progIds.add(row.id); });
+    Promise.resolve(p).catch(err=>{ console.warn("sync course failed:", err);
+      showBanner("⚠ sync failed — changes saved on this device only"); });
+  }, 400);
+}
+// persist student name + advisor comment back to the `students` row
+let _stuTimer=null;
+function syncStudent(){
+  if(!CURRENT) return;
+  writeCache(); try{ localStorage.setItem("cie_adv:"+CURRENT.student_id, advComment); }catch(e){}
+  if(OFFLINE || !HAS_DB()) return;
+  clearTimeout(_stuTimer);
+  _stuTimer=setTimeout(()=>{
+    DB.students.update(CURRENT.student_id, { name: stu.name||"", advisor_comment: advComment||"" })
+      .catch(err=>console.warn("sync student failed:", err));
+  }, 500);
+}
+
+// push loaded state into the already-rendered DOM
+function rehydrate(){
+  DATA.nodes.forEach(n=>{
+    const el=nodeEl[n.key]; if(!el) return;
+    const sel=el.querySelector('.grade'); if(sel){ sel.value=grades[n.key]||''; applyGradeClass(n.key, sel.value); }
+    el.classList.toggle('starred', !!stars[n.key]);
+    el.classList.toggle('hasnote', !!(notes[n.key]&&notes[n.key].trim()));
+    if(isElec(n)){
+      const ec=el.querySelector('.ecode'), en=el.querySelector('.ename');
+      if(ec) ec.value=elecCode(n);
+      if(en) en.value=elecName(n);
+    }
+  });
+  updateCounts(); computeSummary();
+  const w=document.getElementById('whoami');
+  if(w&&CURRENT){
+    w.innerHTML='<b>'+esc(stu.name||CURRENT.student_id)+'</b> · <a id="signout">sign out</a>';
+    const so=document.getElementById('signout');
+    if(so) so.addEventListener('click',()=>{ try{ sessionStorage.removeItem('cie_sess'); }catch(e){} location.reload(); });
+  }
+}
+
+// load this student's progress (Sheet first, localStorage cache on failure)
+async function loadProgress(){
+  let rows=null;
+  if(HAS_DB()){
+    try{ rows = await DB.progress.getAll(); }
+    catch(err){ console.warn("progress load failed:", err); }
+  }
+  if(rows){
+    OFFLINE=false; showBanner("");
+    rows.filter(r=>String(r.student_id)===String(CURRENT.student_id)).forEach(r=>{
+      const k=r.course_key; if(!k) return;
+      progIds.add(String(r.id||PKEY(k)));
+      if(r.grade) grades[k]=String(r.grade);
+      const st=String(r.starred).toUpperCase();
+      if(st==="TRUE"||st==="1") stars[k]=1;
+      if(r.note) notes[k]=String(r.note);
+      if(r.elec_code||r.elec_name){ elec[k]={}; if(r.elec_code)elec[k].code=String(r.elec_code); if(r.elec_name)elec[k].name=String(r.elec_name); }
+    });
+  } else {
+    OFFLINE=true; showBanner("⚠ offline — changes saved on this device only");
+    try{
+      Object.assign(grades, JSON.parse(localStorage.getItem("cie_grades:"+CURRENT.student_id)||"{}"));
+      Object.assign(stars,  JSON.parse(localStorage.getItem("cie_stars:"+CURRENT.student_id)||"{}"));
+      Object.assign(notes,  JSON.parse(localStorage.getItem("cie_notes:"+CURRENT.student_id)||"{}"));
+      Object.assign(elec,   JSON.parse(localStorage.getItem("cie_elec:"+CURRENT.student_id)||"{}"));
+    }catch(e){}
+  }
+  advComment = (CURRENT.advisor_comment!=null && CURRENT.advisor_comment!=="" )
+    ? String(CURRENT.advisor_comment)
+    : (function(){ try{ return localStorage.getItem("cie_adv:"+CURRENT.student_id)||""; }catch(e){ return ""; } })();
+  stu.name = CURRENT.name || ""; stu.id = CURRENT.student_id || "";
+}
+
+// ---- login ----
+const loginEl=document.getElementById('login');
+const loginBtn=document.getElementById('loginBtn');
+const loginErr=document.getElementById('loginErr');
+const loginHint=document.getElementById('loginHint');
+if(!HAS_DB() && loginHint){
+  loginHint.innerHTML="⚠ Backend not configured — set <b>GSHEET_API</b> in data.js. "+
+    "You can still sign in offline with any ID; changes stay on this device.";
+}
+async function doLogin(){
+  const sid=document.getElementById('loginId').value.trim();
+  const pw=document.getElementById('loginPw').value;
+  if(!sid){ loginErr.textContent="Enter your student ID."; return; }
+  loginErr.textContent=""; loginBtn.disabled=true; loginBtn.textContent="Signing in…";
+  try{
+    let row=null;
+    if(HAS_DB()){
+      const students = await DB.students.getAll();
+      row = students.find(s=>String(s.student_id)===sid && String(s.password)===String(pw));
+      if(!row){ loginErr.textContent="Wrong student ID or password."; loginBtn.disabled=false; loginBtn.textContent="Sign in"; return; }
+    } else {
+      row = { id:sid, student_id:sid, password:pw, name:sid, advisor:"", advisor_comment:"", role:"student" };
+    }
+    CURRENT = row;
+    try{ sessionStorage.setItem('cie_sess', JSON.stringify({sid:row.student_id})); }catch(e){}
+    await loadProgress();
+    rehydrate();
+    loginEl.classList.add('hide');
+  }catch(err){
+    loginErr.textContent="Sign-in failed: "+(err&&err.message||err);
+    loginBtn.disabled=false; loginBtn.textContent="Sign in";
+  }
+}
+loginBtn.addEventListener('click',doLogin);
+document.getElementById('loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('loginId').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loginPw').focus(); });
+setTimeout(()=>{ const f=document.getElementById('loginId'); if(f) f.focus(); }, 50);
+
+// ---- PWA service worker ----
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+}
+</script>
+</body>
+</html>

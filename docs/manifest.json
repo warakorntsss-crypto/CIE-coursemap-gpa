@@ -1,0 +1,16 @@
+{
+  "name": "CIE Civil Engineering Course Map",
+  "short_name": "Course Map",
+  "description": "Interactive B.Eng. Civil Engineering (CIE 2568) course map with grade tracking, GPA and PDF progress report.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f7fb",
+  "theme_color": "#175ccc",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
