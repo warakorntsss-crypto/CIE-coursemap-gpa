@@ -1098,7 +1098,13 @@ document.getElementById('loginPw').addEventListener('keydown',e=>{ if(e.key==='E
 document.getElementById('loginId').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loginPw').focus(); });
 if(HAS_API()) API.warmup();   // wake the backend on load so the first login is fast
 document.getElementById('loginId').addEventListener('focus',()=>{ if(HAS_API()) API.warmup(); }, {once:true});
-setTimeout(()=>{ const f=document.getElementById('loginId'); if(f) f.focus(); }, 50);
+// Auto-focus the ID field ONLY on desktop (fine pointer). On iOS — especially an
+// installed/standalone PWA — a programmatic .focus() with no user gesture leaves the
+// field "focused" but shows no keyboard, and the next tap won't re-trigger it, so the
+// keyboard never appears. On touch we let the user's own tap open the keyboard.
+if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
+  setTimeout(()=>{ const f=document.getElementById('loginId'); if(f) f.focus(); }, 50);
+}
 
 // ---- PWA service worker ----
 if('serviceWorker' in navigator){
