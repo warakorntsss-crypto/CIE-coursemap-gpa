@@ -1096,6 +1096,8 @@ const submitAuth=()=>{ mode==='register' ? doRegister() : doLogin(); };
 loginBtn.addEventListener('click',submitAuth);
 document.getElementById('loginPw').addEventListener('keydown',e=>{ if(e.key==='Enter') submitAuth(); });
 document.getElementById('loginId').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('loginPw').focus(); });
+if(HAS_API()) API.warmup();   // wake the backend on load so the first login is fast
+document.getElementById('loginId').addEventListener('focus',()=>{ if(HAS_API()) API.warmup(); }, {once:true});
 setTimeout(()=>{ const f=document.getElementById('loginId'); if(f) f.focus(); }, 50);
 
 // ---- PWA service worker ----

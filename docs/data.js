@@ -25,6 +25,13 @@ async function apiPost(payload) {
 window.API = {
   configured: CONFIGURED,
 
+  // Wake the Apps Script (cold-start is the main login delay). Fire-and-forget GET
+  // on page load so the script is warm by the time the student submits.
+  warmup() {
+    if (!CONFIGURED) return;
+    try { fetch(GSHEET_API + "?action=ping", { cache: "no-store" }).catch(() => {}); } catch (e) {}
+  },
+
   // -> {ok:true, profile, grades:{key:grade}, extras:[...]} | {ok:false}
   login(student_id, password) {
     return apiPost({ action: "login", student_id, password });

@@ -2,7 +2,7 @@
 // NEVER cached: any /api/ request and any cross-origin request (the Google
 // Apps Script /exec endpoint lives on script.google.com) always go to the
 // network so progress data stays live.
-const CACHE = "coursemaps-cie-shell-v4";
+const CACHE = "coursemaps-cie-shell-v5";
 const SHELL = [
   "./", "./index.html", "./data.js", "./manifest.json",
   "./icon-192.png", "./icon-512.png"
