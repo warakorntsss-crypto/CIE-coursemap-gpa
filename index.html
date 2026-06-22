@@ -229,6 +229,8 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .cygpa{padding:4px 6px; border-top:2px solid #16202b; background:#f6f8fb; font-weight:700; text-align:right; font-size:11px}
 .cygpa b{color:#1f3a8a; margin-left:4px}
 .compactpaper .sigrow{margin-top:18px}
+.compactpaper .adv-comment{margin:8px 0 4px}
+.compactpaper .adv-comment textarea{min-height:54px}
 .doc-warn{background:#fff4d6; border:1px solid #e0b34a; color:#5a4205;
   border-radius:6px; padding:9px 12px; margin:0 0 14px; font-size:12px; line-height:1.45}
 .doc-warn b{color:#7a5800}
@@ -748,6 +750,8 @@ function buildCompact(today){
     '<div class="compactgrid">'+cols+'</div>'+
     '<div class="docsummary compact"><span><b>Credits studied:</b> '+d.cred+' / '+TOTAL_CR+
       ' &nbsp;&middot;&nbsp; <b>Cumulative GPA:</b> '+d.total+'</span></div>'+
+    '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
+      '<textarea id="docComment">'+esc(localStorage.getItem(LS_ADV)||'')+'</textarea></div>'+
     sigRow();
 }
 let docMode='full';
