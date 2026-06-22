@@ -92,8 +92,10 @@ header{
 .node.graded .grade{color:#1e7a2e; border-color:#3f9e52}
 .node.failed .grade{color:#b3261e; border-color:#d05c5c}
 .node.withdrawn .grade{color:#54657a; border-color:#93a3b4}
+.node.credited .grade{color:#1565a8; border-color:#4a90c2}
 .node.graded{box-shadow:inset 0 0 0 1px rgba(63,158,82,.40)}
 .node.failed{box-shadow:inset 0 0 0 1px rgba(208,92,92,.45)}
+.node.credited{box-shadow:inset 0 0 0 1px rgba(74,144,194,.40)}
 .node .star{position:absolute; right:4px; top:3px; font-size:15px; line-height:1; color:#a8b7c7; cursor:pointer; transition:color .15s,transform .15s; padding:5px}
 .node .star:hover{transform:scale(1.2)}
 .node.starred .star{color:#f59e0b; text-shadow:0 0 7px rgba(245,158,11,.55)}
@@ -503,7 +505,7 @@ DATA.sems.forEach((s,i)=>{
 });
 
 // ---- nodes ----
-const GRADES=['A','B+','B','C+','C','D+','D','F','W'];
+const GRADES=['A','B+','B','C+','C','D+','D','F','W','S','CS','U','I','P'];
 const GRADE_OPTS=GRADES.map(g=>'<option value="'+g+'">'+g+'</option>').join('');
 const nodeEl={};
 DATA.nodes.forEach(n=>{
@@ -708,14 +710,16 @@ function updateCounts(){
 // ---- grades + GPA summary (CMU scale: A4 B+3.5 B3 C+2.5 C2 D+1.5 D1 F0; W excluded) ----
 const GPOINTS={A:4,'B+':3.5,B:3,'C+':2.5,C:2,'D+':1.5,D:1,F:0};
 const PASSING=new Set(['A','B+','B','C+','C','D+','D']);  // counts toward credits studied
+const CREDIT_NOGPA=new Set(['S','CS']);  // earn credit, no GPA points
 const TOTAL_CR=DATA.sems.reduce((s,x)=>s+x.cr,0);
 function semLabel(col){ const l=DATA.sems[col].label; if(/summer/i.test(l)) return 'Summer';
   const m=l.match(/Y(\d)\s*S(\d)/i); return m?('Year '+m[1]+' Semester '+m[2]):l; }
 function applyGradeClass(key,g){
   const el=nodeEl[key]; if(!el) return;
-  el.classList.toggle('graded', !!g && g!=='W' && g!=='F');
-  el.classList.toggle('failed', g==='F');
-  el.classList.toggle('withdrawn', g==='W');
+  el.classList.toggle('graded',    /^(A|B\+|B|C\+|C|D\+|D)$/.test(g||''));   // A..D
+  el.classList.toggle('failed',    g==='F' || g==='U');
+  el.classList.toggle('withdrawn', g==='W' || g==='I' || g==='P');
+  el.classList.toggle('credited',  g==='S' || g==='CS');
 }
 function setGrade(key,g){
   if(g) grades[key]=g; else delete grades[key];
@@ -727,9 +731,10 @@ function gpaData(){
   for(let c=0;c<DATA.sems.length;c++){
     let num=0,den=0;
     DATA.nodes.filter(n=>n.col===c).forEach(n=>{
-      const g=grades[n.key]; if(!g||g==='W') return;     // W & blank: no points, no credit
-      num+=GPOINTS[g]*n.cr; den+=n.cr;
-      if(PASSING.has(g)) cred+=n.cr;                       // credits studied = A..D only
+      const g=grades[n.key]; if(!g) return;
+      if(g in GPOINTS){ num+=GPOINTS[g]*n.cr; den+=n.cr; if(PASSING.has(g)) cred+=n.cr; }
+      else if(CREDIT_NOGPA.has(g)) cred+=n.cr;             // S/CS: credit, no GPA
+      // W/U/I/P: no points, no credit
     });
     tNum+=num; tDen+=den;
     rows.push({col:c, label:semLabel(c), gpa:den?(num/den).toFixed(2):'—', den});
@@ -789,7 +794,7 @@ function buildFull(today){
   }
   return docHead(today)+sems+
     '<div class="docsummary"><h3>Summary</h3>'+
-      '<div class="srow2 big"><span>Total credits studied (passing grade A&ndash;D)</span><b>'+d.cred+' / '+TOTAL_CR+'</b></div>'+
+      '<div class="srow2 big"><span>Total credits studied (passing grade A&ndash;D, S, CS)</span><b>'+d.cred+' / '+TOTAL_CR+'</b></div>'+
       '<div class="srow2 big"><span>Cumulative GPA</span><b>'+d.total+'</b></div></div>'+
     '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
       '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
@@ -805,7 +810,7 @@ function buildCompact(today){
       body+='<div class="cyhdr">'+DATA.sems[c].label+'</div>';
       DATA.nodes.filter(n=>n.col===c).forEach(n=>{
         const gv=grades[n.key], g=gv||'-';
-        if(gv&&gv!=='W'){ num+=GPOINTS[gv]*n.cr; den+=n.cr; }
+        if(gv && gv in GPOINTS){ num+=GPOINTS[gv]*n.cr; den+=n.cr; }
         body+='<div class="cyrow"><span>'+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
       });
     });
