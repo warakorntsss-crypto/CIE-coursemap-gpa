@@ -1097,6 +1097,7 @@ function buildDoc(mode){
 document.getElementById('pdfBtn').addEventListener('click',()=>{ buildDoc('full'); docview.classList.add('open'); });
 document.getElementById('docFull').addEventListener('click',()=>buildDoc('full'));
 document.getElementById('docCompact').addEventListener('click',()=>buildDoc('compact'));
+document.getElementById('docTracks').addEventListener('click',()=>buildDoc('tracks'));
 document.getElementById('docClose').addEventListener('click',()=>docview.classList.remove('open'));
 document.getElementById('docPrint').addEventListener('click',()=>{
   if(INAPP){ const w=document.querySelector('.doc-warn'); if(w){ w.scrollIntoView({block:'center'}); w.animate?w.animate([{opacity:.4},{opacity:1}],{duration:500,iterations:2}):0; } }
