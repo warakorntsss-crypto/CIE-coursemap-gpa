@@ -1367,8 +1367,26 @@ if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
 }
 
 // ---- PWA service worker ----
+// APP_BUILD is printed in the header and the console: if a bug report does not
+// match the deployed build, the device is running a cached shell, not this code.
+const APP_BUILD='v13';
+console.log('CIE course map build '+APP_BUILD);
+const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+  // a worker was already controlling this page when it loaded; if a NEW one takes
+  // over afterwards, the shell it serves has changed under us -> reload once so the
+  // user is never left running half-old code (this is what stranded the Tracks tab).
+  const hadController=!!navigator.serviceWorker.controller; let swReloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!hadController || swReloaded) return;      // first install: nothing stale to replace
+    swReloaded=true; location.reload();
+  });
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('service-worker.js').then(reg=>{
+      reg.update();                                // check for a newer worker on every launch
+      setInterval(()=>reg.update(), 3600000);      // ...and hourly for long-lived sessions
+    }).catch(()=>{});
+  });
 }
 </script>
 </body>
