@@ -15,6 +15,14 @@ self-contained interactive HTML app (`index.html`, opens by double-click — no 
 - **Grade + GPA tracker** — per-course grade dropdown (A / B+ / B / C+ / C / D+ / D / F / W).
   A "Progress" panel shows **GPA per semester**, a Summer line, the **cumulative GPA**, and
   **credits studied**. CMU scale: A=4, B+=3.5, B=3, C+=2.5, C=2, D+=1.5, D=1, F=0; W excluded.
+- **Internship / Co-op eligibility** — `⚑ intern` and `⚑ co-op` highlight the subjects each track
+  requires: a green ring when the grade meets the minimum (A–D for internship, A–C for co-op), a red
+  ring when it doesn't; everything else dims. The `⚑ tracks` page prints a full eligibility report —
+  requirements, subject table with the student's grades, the GPA check (> 1.75 by Y3/S1 for the
+  internship, > 2.00 cumulative for co-op), an ELIGIBLE / NOT ELIGIBLE verdict, and a
+  **"Contact your Academic Advisor"** warning when a condition is unmet. The student's study year is
+  derived from the ID prefix (e.g. `67…` → Year 3); a non-numeric prefix shows "Year unknown".
+  Source of the rules: CIE Year-End Meeting 2-68 deck.
 - **Editable electives** — for elective slots the student can edit the registered **course code**
   and type the **actual course name**; both flow into the printed documents.
 - **Save as PDF** — a formal A4 document via the browser print dialog, in two layouts:

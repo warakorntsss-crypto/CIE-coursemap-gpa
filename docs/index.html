@@ -102,6 +102,16 @@ header{
 .node.graded{box-shadow:inset 0 0 0 1px rgba(63,158,82,.40)}
 .node.failed{box-shadow:inset 0 0 0 1px rgba(208,92,92,.45)}
 .node.credited{box-shadow:inset 0 0 0 1px rgba(74,144,194,.40)}
+/* internship / co-op track highlight: OUTER ring so it never fights the inset grade colours */
+.node.req-pass{box-shadow:0 0 0 3px #16a34a,0 6px 16px rgba(22,163,74,.25)}
+.node.req-fail{box-shadow:0 0 0 3px #dc2626,0 6px 16px rgba(220,38,38,.25)}
+.node.req-pass::after,.node.req-fail::after{position:absolute; right:27px; top:5px; z-index:2;
+  width:17px; height:17px; border-radius:50%; color:#fff; font-size:11px; font-weight:700;
+  line-height:17px; text-align:center; font-family:"JetBrains Mono",monospace}
+.node.req-pass::after{content:'✓'; background:#16a34a}
+.node.req-fail::after{content:'✗'; background:#dc2626}
+.node.dimtrack{opacity:.18}
+#map.codeonly .node::after{display:none}
 .node .star{position:absolute; right:4px; top:3px; font-size:15px; line-height:1; color:#a8b7c7; cursor:pointer; transition:color .15s,transform .15s; padding:5px}
 .node .star:hover{transform:scale(1.2)}
 .node.starred .star{color:#f59e0b; text-shadow:0 0 7px rgba(245,158,11,.55)}
@@ -225,6 +235,28 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .sigline{border-bottom:1px solid #16202b; height:46px; margin-bottom:6px}
 .sigbox b{display:block; font-size:12.5px}
 .sigbox span{color:#5a6675; font-size:11px}
+/* internship / co-op tracks page */
+.trkblock{margin:0 0 20px; break-inside:avoid; page-break-inside:avoid}
+.trkhead{display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+  border-bottom:2px solid #16202b; padding-bottom:5px; margin-bottom:7px}
+.trkhead h3{margin:0; font-family:"Lexend",sans-serif; text-transform:uppercase; letter-spacing:.6px; font-size:15px}
+.trkhead span{font-size:11.5px; color:#5a6675}
+.trkrule{font-size:12px; color:#384655; margin:0 0 8px}
+.trkyear{font-size:12px; margin:2px 0 16px; padding:6px 10px; background:#eef2f7; border:1px solid #c7d0db; border-radius:5px}
+.trkyear b{font-family:"JetBrains Mono",monospace}
+.ok{color:#146c2e; font-weight:700}
+.bad{color:#b3261e; font-weight:700}
+.trkverdict{display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+  border:2px solid #16202b; border-radius:6px; padding:8px 14px; margin-top:8px; font-size:13px}
+.trkverdict b{font-size:15px; letter-spacing:.4px}
+.trkverdict.pass{border-color:#16a34a}
+.trkverdict.pass b{color:#146c2e}
+.trkverdict.fail{border-color:#dc2626}
+.trkverdict.fail b{color:#b3261e}
+.advisor-warn{margin-top:8px; border:2px solid #dc2626; border-radius:6px; background:#fdf2f2;
+  color:#8f1d18; padding:9px 14px; font-size:12.5px; break-inside:avoid; page-break-inside:avoid}
+.advisor-warn b{font-size:13px}
+.advisor-warn div{margin-top:3px; color:#7a2a25; font-size:11.5px}
 .doctools .docmode{background:#eef2f8}
 .doctools .docmode.on{background:var(--cyan); color:#fff; border-color:var(--cyan); font-weight:600}
 /* one-page compact layout */
@@ -249,7 +281,7 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   .doc-warn{display:none !important}
   @page{ size:A4; margin:13mm }
   html,body{height:auto; overflow:visible; background:#fff}
-  header,#scroll,#zoom,#panel,#summary,.hint,.doctools{display:none !important}
+  header,#scroll,#zoom,#panel,#summary,.hint,.doctools,#banner{display:none !important}
   #docview{position:static; inset:auto; background:#fff; padding:0; overflow:visible; display:block !important}
   .docpaper{box-shadow:none; width:auto; max-width:none; margin:0; padding:0}
   .doc-meta input{border-bottom:1px solid #16202b}
@@ -352,6 +384,9 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
     <div class="tools">
       <input type="search" id="search" placeholder="search…" autocomplete="off"/>
       <button class="btn" id="starsBtn">★ starred</button>
+      <button class="btn" id="internBtn" title="Highlight the subjects required for the internship">⚑ intern</button>
+      <button class="btn" id="coopBtn" title="Highlight the subjects required for co-op">⚑ co-op</button>
+      <button class="btn" id="trackBtn" title="Internship &amp; co-op eligibility report">⚑ tracks</button>
       <button class="btn" id="sumBtn">▣ progress</button>
       <button class="btn" id="pdfBtn">⭳ save pdf</button>
       <span class="counts" id="counts"></span>
@@ -399,6 +434,7 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   <div class="doctools">
     <button id="docFull" class="docmode on">Detailed</button>
     <button id="docCompact" class="docmode">1-Page</button>
+    <button id="docTracks" class="docmode">Tracks</button>
     <button id="docPrint">🖨 Print / Save PDF</button>
     <button id="docClose">✕ Close</button>
   </div>
@@ -689,10 +725,19 @@ Object.keys(DATA.cats).forEach(k=>{
   });
   legend.appendChild(d);
 });
+// ---- internship / co-op track highlight (null | 'intern' | 'coop'); see TRACKS below ----
+let trackOn=null;
 function applyFilters(){
+  const tv = trackOn ? evalTrack(trackOn) : null;          // {rows:[{key,ok}], ...}
+  const req = {}; if(tv) tv.rows.forEach(r=>req[r.key]=r.ok);
   DATA.nodes.forEach(n=>{
     const off=!activeCats.has(n.cat) || (starsOnly && !stars[n.key]);
-    nodeEl[n.key].classList.toggle('hidden',off);
+    const el=nodeEl[n.key];
+    el.classList.toggle('hidden',off);
+    const inTrack = tv && (n.key in req);
+    el.classList.toggle('req-pass', !!(inTrack && req[n.key]));
+    el.classList.toggle('req-fail', !!(inTrack && !req[n.key]));
+    el.classList.toggle('dimtrack', !!(tv && !inTrack));
   });
   wireMeta.forEach(w=>{
     const hide=nodeEl[w.s].classList.contains('hidden')||nodeEl[w.t].classList.contains('hidden');
@@ -779,6 +824,7 @@ function combineAttempts(el){
 function setGrade(key,g){
   if(g) grades[key]=g; else delete grades[key];
   saveGrades(); syncGrade(key); applyGradeClass(key,g); computeSummary();
+  if(trackOn) applyFilters();      // re-colour the track rings for the new grade
 }
 // per-semester GPA data, shared by the on-screen panel and the PDF document
 function gpaData(){
@@ -803,6 +849,110 @@ function computeSummary(){
     '<div class="sbig">'+d.cred+'<small> / '+TOTAL_CR+' credits studied</small></div>'+rows+
     '<div class="srow total"><span>Total GPA</span><b>'+d.total+'</b><i>'+d.tDen+' cr</i></div>';
 }
+
+// ===========================================================================
+//  INTERNSHIP / CO-OP ELIGIBILITY
+//  Conditions transcribed from the CIE Year-End Meeting 2-68 deck
+//  (Random/CIE-internship-coop-conditions.md). The CMU numeric course codes are
+//  kept next to this app's course keys so the printed report matches the source.
+// ===========================================================================
+const TRACKS={
+  intern:{
+    id:'intern', label:'Internship', when:'Summer of Year 3',
+    gpaMin:1.75, gpaThroughCol:4, gpaLabel:'GPA by Year 3 / Semester 1',
+    rule:'GPA &gt; 1.75 and grade A&ndash;D in all 6 subjects, by the 1st semester of Year 3.',
+    deadline:{year:3, sem:'Semester 1'},
+    reqs:[
+      {code:'206162', key:'MATH162', min:'D', title:'Calculus for Engineering 2'},
+      {code:'251212', key:'CE212',   min:'D', title:'Theory and Analysis of Structures'},
+      {code:'251216', key:'CE216',   min:'D', title:'Structural Material and Testing'},
+      {code:'251261', key:'CE261',   min:'D', title:'Hydraulics'},
+      {code:'205275', key:'GEOL275', min:'D', title:'Geology for Engineers'},
+      {code:'208263', key:'STAT263', min:'D', title:'Elementary Statistics'}
+    ]
+  },
+  coop:{
+    id:'coop', label:'Co-operative Education', when:'Co-op track study plan',
+    gpaMin:2.0, gpaThroughCol:null, gpaLabel:'Cumulative GPA',
+    rule:'Cumulative GPA &gt; 2.00, Calculus for Engineering 2 passed by Year 3 / Semester 1, '+
+         'and grade A&ndash;C in the 6 CE required courses.',
+    deadline:null,
+    reqs:[
+      {code:'206162', key:'MATH162', min:'D', title:'Calculus for Engineering 2'},
+      {code:'251212', key:'CE212',   min:'C', title:'Theory and Analysis of Structures'},
+      {code:'251363', key:'CE363',   min:'C', title:'Engineering Hydrology'},
+      {code:'251313', key:'CE313',   min:'C', title:'Reinforced Concrete Design'},
+      {code:'251333', key:'CE333',   min:'C', title:'Highway Engineering'},
+      {code:'251374', key:'CE374',   min:'C', title:'Foundation Engineering and Practices'},
+      {code:'251343', key:'CE343',   min:'C', title:'Survey for Engineering'}
+    ]
+  }
+};
+// one comparison covers both thresholds; F/W/U/I/blank all fall through as a fail.
+// S/CS earn credit but no grade points -> accepted only where any passing grade (A-D) is enough.
+function gradePass(g, min){
+  if(g in GPOINTS) return GPOINTS[g] >= GPOINTS[min];
+  if(CREDIT_NOGPA.has(g)) return min==='D';
+  return false;
+}
+// cumulative GPA up to and including column maxCol (null = every semester)
+function gpaThrough(maxCol){
+  const last = (maxCol==null) ? DATA.sems.length-1 : Math.min(maxCol, DATA.sems.length-1);
+  let num=0, den=0;
+  for(let c=0;c<=last;c++) DATA.nodes.filter(n=>n.col===c).forEach(n=>{
+    const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den;
+  });
+  return {gpa: den?(num/den).toFixed(2):'—', den};
+}
+function evalTrack(id){
+  const t=TRACKS[id];
+  const rows=t.reqs.map(r=>{
+    const raw=grades[r.key]||'';
+    return {code:r.code, key:r.key, title:r.title,
+      need:(r.min==='D'?'A–D':'A–C'),
+      got: raw?String(raw).replace(/>/g,' → '):'—',
+      ok: gradePass(effGrade(raw), r.min)};
+  });
+  const g=gpaThrough(t.gpaThroughCol);
+  const gpaOk = g.den>0 && parseFloat(g.gpa) > t.gpaMin;
+  const passed=rows.filter(r=>r.ok).length;
+  return {track:t, rows, passed, total:rows.length, gpa:g.gpa, gpaDen:g.den, gpaOk,
+          eligible: gpaOk && passed===rows.length};
+}
+// student ID prefix (Thai BE intake year) vs today's academic year -> study year + semester
+function studentYear(id){
+  const s=String(id||'').trim();
+  if(!/^\d{2}/.test(s)) return {known:false};
+  const now=new Date(), m=now.getMonth()+1;
+  const ay = now.getFullYear()+543-(m>=6?0:1);                       // CMU S1 starts ~June
+  const sem = (m>=6&&m<=10)?'Semester 1':((m>=11||m<=3)?'Semester 2':'Summer');
+  const year = ay-(2500+parseInt(s.slice(0,2),10))+1;
+  if(!(year>=1&&year<=8)) return {known:false};
+  return {known:true, year, sem, ay};
+}
+// the ID typed on the report wins (it is seeded from the login), so an advisor can check another ID
+const currentStudentId=()=>stu.id||(CURRENT&&CURRENT.student_id)||'';
+// true once the track's deadline semester has gone by (used for the advisor warning wording)
+function pastDeadline(t){
+  if(!t.deadline) return false;
+  const y=studentYear(currentStudentId()); if(!y.known) return false;
+  if(y.year>t.deadline.year) return true;
+  return y.year===t.deadline.year && y.sem!==t.deadline.sem;
+}
+
+// ---- track toggles (map highlight) ----
+const internBtn=document.getElementById('internBtn'), coopBtn=document.getElementById('coopBtn');
+function setTrack(id){
+  trackOn = (trackOn===id) ? null : id;
+  internBtn.classList.toggle('on', trackOn==='intern');
+  coopBtn.classList.toggle('on', trackOn==='coop');
+  applyFilters();
+}
+internBtn.addEventListener('click',()=>setTrack('intern'));
+coopBtn.addEventListener('click',()=>setTrack('coop'));
+document.getElementById('trackBtn').addEventListener('click',()=>{
+  buildDoc('tracks'); docview.classList.add('open');
+});
 
 // ---- formal PDF document (course list + summary + advisor comment + signatures) ----
 const docview=document.getElementById('docview');
@@ -879,18 +1029,69 @@ function buildCompact(today){
       '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
     sigRow();
 }
+// ---- internship / co-op eligibility page ----
+function trackBlock(id){
+  const v=evalTrack(id), t=v.track;
+  const rows=v.rows.map(r=>
+    '<tr><td>'+r.code+'</td><td>'+esc(r.title)+'</td><td class="c">'+r.need+'</td>'+
+    '<td class="c">'+esc(r.got)+'</td>'+
+    '<td class="c">'+(r.ok?'<span class="ok">✓</span>':'<span class="bad">✗</span>')+'</td></tr>').join('');
+  const gpaRow='<div class="srow2"><span>'+t.gpaLabel+' &mdash; minimum '+t.gpaMin.toFixed(2)+'</span>'+
+    '<b>'+v.gpa+' '+(v.gpaOk?'<span class="ok">✓</span>':'<span class="bad">✗</span>')+'</b></div>';
+  const why=[];
+  if(!v.gpaOk) why.push(v.gpaDen? ('GPA '+v.gpa+' is not above '+t.gpaMin.toFixed(2)) : 'no grades recorded yet');
+  if(v.passed<v.total) why.push((v.total-v.passed)+' subject'+((v.total-v.passed)>1?'s':'')+' not yet passed at '+
+    (t.reqs.some(r=>r.min==='C')?'the required grade':'grade A–D'));
+  const warn = v.eligible ? '' :
+    '<div class="advisor-warn"><b>⚠ Contact your Academic Advisor</b>'+
+      '<div>Not eligible: '+esc(why.join('; '))+'.'+
+      (pastDeadline(t)?' The Year '+t.deadline.year+' / '+t.deadline.sem+' deadline for these conditions has already passed.':'')+
+      '</div></div>';
+  return '<div class="trkblock">'+
+    '<div class="trkhead"><h3>'+t.label+'</h3><span>'+t.when+'</span></div>'+
+    '<p class="trkrule">'+t.rule+'</p>'+
+    '<table class="docsem"><caption>Required subjects &mdash; '+v.total+' total</caption>'+
+      '<thead><tr><th>Code</th><th>Course</th><th class="c">Need</th><th class="c">Your grade</th><th class="c">Result</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody></table>'+
+    gpaRow+
+    '<div class="trkverdict '+(v.eligible?'pass':'fail')+'">'+
+      '<span>'+v.passed+' / '+v.total+' subjects passed</span>'+
+      '<b>'+(v.eligible?'ELIGIBLE':'NOT ELIGIBLE')+'</b></div>'+
+    warn+'</div>';
+}
+function trackYearLine(){
+  const id=currentStudentId(), y=studentYear(id);
+  return '<div class="trkyear" id="trkYearLine">Student ID <b>'+esc(id||'—')+'</b> &mdash; '+
+    (y.known ? 'Year <b>'+y.year+'</b>, <b>'+y.sem+'</b> (academic year '+y.ay+')'
+             : '<b>Year unknown</b> &mdash; enter a numeric student ID (e.g. 67&hellip;) above.')+'</div>';
+}
+function buildTracks(today){
+  return docHead(today)+
+    '<div style="text-align:center;font-size:12.5px;margin:0 0 10px">'+
+      '<b>Internship &amp; Co-operative Education &mdash; Eligibility Check</b></div>'+
+    trackYearLine()+trackBlock('intern')+trackBlock('coop')+
+    '<p style="font-size:10.5px;color:#5a6675;margin:10px 0 0">Conditions from the CIE Year-End Meeting 2-68 deck; '+
+      'the deck marks the Year 3 / Semester 1 timetable as unofficial and subject to change. Confirm with the department.</p>'+
+    sigRow();
+}
 let docMode='full';
 function buildDoc(mode){
   docMode = mode||docMode;
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'long',day:'numeric'});
   document.getElementById('docPaper').className='docpaper'+(docMode==='compact'?' compactpaper':'');
-  document.getElementById('docPaper').innerHTML = warnHtml()+(docMode==='compact'?buildCompact(today):buildFull(today));
+  document.getElementById('docPaper').innerHTML = warnHtml()+
+    (docMode==='compact'?buildCompact(today):(docMode==='tracks'?buildTracks(today):buildFull(today)));
   document.getElementById('docFull').classList.toggle('on',docMode==='full');
   document.getElementById('docCompact').classList.toggle('on',docMode==='compact');
+  document.getElementById('docTracks').classList.toggle('on',docMode==='tracks');
   // rebind persisted fields
   const nm=document.getElementById('docName'), id=document.getElementById('docID'), cm=document.getElementById('docComment');
   if(nm) nm.addEventListener('input',()=>{ stu.name=nm.value; syncStudent(); });
-  if(id) id.addEventListener('input',()=>{ stu.id=id.value; syncStudent(); });
+  if(id) id.addEventListener('input',()=>{ stu.id=id.value; syncStudent();
+    // tracks page: refresh the year read-out in place (a full rebuild would drop focus)
+    if(docMode==='tracks'){ const yl=document.getElementById('trkYearLine');
+      if(yl){ const tmp=document.createElement('div'); tmp.innerHTML=trackYearLine(); yl.innerHTML=tmp.firstChild.innerHTML; } }
+  });
   if(cm) cm.addEventListener('input',()=>{ advComment=cm.value; syncStudent(); });
 }
 document.getElementById('pdfBtn').addEventListener('click',()=>{ buildDoc('full'); docview.classList.add('open'); });
