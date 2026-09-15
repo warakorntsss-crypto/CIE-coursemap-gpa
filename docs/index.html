@@ -349,6 +349,97 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 #whoami b{color:#14233a}
 #whoami a{color:var(--cyan); cursor:pointer; text-decoration:none}
 #whoami a:hover{text-decoration:underline}
+/* ---- track (plan) switch: header select + confirm/warning dialog (TASK 2) ---- */
+#planSel{appearance:none; -webkit-appearance:none; padding-right:24px; text-align:left;
+  background-image:linear-gradient(45deg,transparent 50%,#44566b 50%),linear-gradient(135deg,#44566b 50%,transparent 50%);
+  background-position:calc(100% - 12px) 55%,calc(100% - 7px) 55%; background-size:5px 5px,5px 5px; background-repeat:no-repeat}
+#trackDlg{position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center;
+  background:rgba(20,40,80,.55); padding:16px}
+#trackDlg.open{display:flex}
+.tdlg-card{width:420px; max-width:100%; max-height:88vh; overflow:auto; background:#fff; color:#16202b;
+  border-radius:14px; box-shadow:0 18px 50px rgba(20,40,80,.20); padding:22px 22px 20px}
+.tdlg-card h3{margin:2px 0 10px; font-family:"Lexend",sans-serif; font-size:15px; text-transform:uppercase; letter-spacing:.6px; color:#14233a}
+.tdlg-card p{margin:0 0 10px; font-size:12.5px; line-height:1.5; color:#41526a}
+.tdlg-tag{display:inline-block; font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.8px;
+  text-transform:uppercase; border-radius:20px; padding:3px 10px; margin-bottom:6px; border:1px solid}
+.tdlg-tag.ok{color:#146c2e; border-color:#16a34a}
+.tdlg-tag.bad{color:#b3261e; border-color:#dc2626}
+.tdlg-changes{margin:0 0 10px; padding-left:18px; font-size:12.5px; line-height:1.55; color:#41526a}
+.tdlg-btns{display:flex; justify-content:flex-end; gap:10px; margin-top:14px}
+/* ---- move a course between semesters: edit-mode handle, "Move to…" sheet, warning toast (TASK 3A) ---- */
+/* the grip lives in the box's existing 12px left padding gutter; edit mode widens it a little */
+#map.editmode:not(.codeonly) .node{padding-left:18px}
+.node .mvh{position:absolute; left:0; top:0; bottom:0; width:15px; display:none;
+  align-items:center; justify-content:center; cursor:grab; user-select:none;
+  /* MUST be a stylesheet rule, not set on pointerdown: Chrome/Android claims the scroll
+     gesture before the first pointermove, so a JS-time change arrives too late. Handle only,
+     so native scrolling still works everywhere else on the map. */
+  touch-action:none;
+  border-right:1px dashed rgba(28,42,58,.25); border-radius:8px 0 0 8px;
+  background:rgba(255,255,255,.55); color:#5f7187; font-size:11px; line-height:1}
+.node .mvh:hover{color:var(--cyan); background:rgba(23,92,204,.10)}
+.node .mvh:focus{outline:none; color:var(--cyan); background:rgba(23,92,204,.14)}
+#map.editmode .node .mvh{display:flex}
+#map.editmode .node.moved{border-style:dashed}
+.node.mvdrag{z-index:20; cursor:grabbing; opacity:.85; box-shadow:0 10px 26px rgba(20,40,80,.30)}
+#cols .colhdr.mvtarget{border-color:var(--cyan); box-shadow:0 0 0 2px var(--cyan)}
+#map.codeonly .node .mvh{display:none}   /* zoomed-out overview: box contents are suppressed */
+#mvResetAll{display:none}
+body.editing #mvResetAll{display:block}
+/* "Move to…" sheet: same backdrop + card as the track dialog */
+#mvDlg{position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center;
+  background:rgba(20,40,80,.55); padding:16px}
+#mvDlg.open{display:flex}
+.mvlist{display:flex; flex-direction:column; gap:6px; margin:4px 0 2px}
+.mvrow{display:flex; align-items:center; gap:8px; width:100%; text-align:left; cursor:pointer;
+  font-family:"JetBrains Mono",monospace; font-size:12px; color:#44566b;
+  background:#fff; border:1px solid var(--panel-line); border-radius:6px; padding:9px 11px}
+.mvrow:hover{border-color:var(--cyan); color:var(--ink)}
+.mvrow:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
+.mvrow b{color:#14233a; min-width:64px}
+.mvrow i{font-style:normal; margin-left:auto; font-size:10px; letter-spacing:.6px; color:var(--cyan)}
+.mvrow.cur{border-color:var(--amber); background:#fff9ee}
+.mvrow.cur i{color:var(--amber-ink)}
+/* own toast: #banner is owned by sync/offline errors and must not be stomped by a move warning */
+#mvToast{position:fixed; left:50%; transform:translateX(-50%); top:calc(var(--bar) + 12px); z-index:56;
+  width:430px; max-width:92vw; display:none;
+  background:#fff4d6; border:1px solid #e0b34a; color:#5a4205; border-radius:8px; padding:9px 32px 10px 13px;
+  font-family:"JetBrains Mono",monospace; font-size:11px; line-height:1.5; box-shadow:0 6px 20px rgba(20,40,80,.15)}
+#mvToast.show{display:block}
+#mvToast b{color:#7a5800}
+#mvToast ul{margin:4px 0 0; padding-left:15px}
+#mvToast .mvx{position:absolute; top:4px; right:7px; cursor:pointer; font-size:13px; line-height:1; padding:4px}
+#mvToast .mvx:hover{color:#7a5800}
+/* a prerequisite dragged AFTER its dependent: drawn by the span<0 router branch, in red */
+.wire.back{stroke:#dc2626; stroke-width:1.8}
+@media (max-width:720px){
+  #map.editmode:not(.codeonly) .node{padding-left:23px}
+  .node .mvh{width:20px}
+}
+@media print{ #mvToast,#mvDlg{display:none !important} }
+/* ---- add a course: quick elective slot + full custom-course form (TASK 3B) ---- */
+#addBtn{display:none}
+body.editing #addBtn{display:block}
+#addDlg{position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center;
+  background:rgba(20,40,80,.55); padding:16px}
+#addDlg.open{display:flex}
+.addchoice{display:flex; flex-direction:column; gap:8px; margin:4px 0 2px}
+.addlist{display:flex; flex-direction:column; gap:6px; max-height:160px; overflow:auto}
+.addrow{display:flex; align-items:center; justify-content:space-between; gap:8px;
+  font-family:"JetBrains Mono",monospace; font-size:11.5px; color:#44566b;
+  background:#f6f9fd; border:1px solid var(--panel-line); border-radius:6px; padding:6px 6px 6px 11px}
+.addrow i{font-style:normal; color:var(--ink-dim)}
+.addrow .addrm{padding:3px 8px; font-size:11px}
+.addform{display:flex; flex-direction:column; gap:2px; margin:4px 0 2px}
+.addform label{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.5px;
+  color:var(--ink-dim); margin:8px 0 4px}
+.addform input,.addform select{width:100%; background:#fbfcfe; border:1px solid var(--panel-line);
+  border-radius:8px; color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:13px; padding:9px 10px}
+.addform input:focus,.addform select:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan)}
+.addchk{display:flex !important; flex-direction:row; align-items:center; gap:7px; margin:10px 0 4px !important}
+.addchk input{width:auto !important; padding:0 !important}
+.adderr{min-height:14px; font-family:"JetBrains Mono",monospace; font-size:11px; color:#b3261e; margin-top:8px}
+@media print{ #addDlg{display:none !important} }
 </style>
 </head>
 <body>
@@ -378,14 +469,21 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   <header>
     <div class="brand">
       <b>Civil Engineering &middot; Course Map</b>
-      <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; 149 Credit</small>
+      <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; <span id="brandCr">149</span> Credit &nbsp;//&nbsp; <span id="brandTrack">Regular</span></small>
     </div>
     <div class="legend" id="legend"></div>
     <div class="tools">
       <input type="search" id="search" placeholder="search…" autocomplete="off"/>
       <button class="btn" id="starsBtn">★ starred</button>
       <button class="btn" id="internBtn" title="Highlight the subjects required for the internship">⚑ intern</button>
-      <button class="btn" id="coopBtn" title="Highlight the subjects required for co-op">⚑ co-op</button>
+      <button class="btn" id="coopBtn" title="Highlight the subjects required for co-op eligibility">⚑ co-op req.</button>
+      <select class="btn" id="planSel" title="Switch between the Regular and Co-op (สหกิจศึกษา) curriculum">
+        <option value="regular">Plan: Regular</option>
+        <option value="coop">Plan: Co-op</option>
+      </select>
+      <button class="btn" id="editBtn" title="Edit mode: move a course to another semester">✎ edit</button>
+      <button class="btn" id="mvResetAll" title="Put every moved course back on the plan">↺ reset</button>
+      <button class="btn" id="addBtn" title="Add a free elective slot, or an off-plan/repeated course">+ add</button>
       <button class="btn" id="trackBtn" title="Internship &amp; co-op eligibility report">⚑ tracks</button>
       <button class="btn" id="sumBtn">▣ progress</button>
       <button class="btn" id="pdfBtn">⭳ save pdf</button>
@@ -414,6 +512,13 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
     </svg>
   </div>
 </div>
+
+<div id="trackDlg"></div>
+
+<div id="mvDlg"></div>
+<div id="mvToast"></div>
+
+<div id="addDlg"></div>
 
 <div id="zoom">
   <button class="fit" id="zfit" title="Fit whole map">FIT</button>
@@ -465,7 +570,7 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 
 <script src="data.js"></script>
 <script>
-const DATA = {"nodes": [{"key": "ENGL101", "col": 0, "short": "ENGL101", "name": "Fundamental English 1", "cr": 3, "cat": "ge", "desc": "Basic listening, speaking, reading and writing skills in English for varied cultural contexts."}, {"key": "CHEM162", "col": 0, "short": "CHEM162", "name": "General Chemistry for Engineers", "cr": 3, "cat": "core", "desc": "Stoichiometry, atomic structure, chemical bonding, states of matter and reaction rates."}, {"key": "CHEM167", "col": 0, "short": "CHEM167", "name": "General Chemistry Laboratory", "cr": 1, "cat": "lab", "desc": "Basic chemistry lab experiments: gas constants, titrations and polymer synthesis."}, {"key": "MATH161", "col": 0, "short": "MATH161", "name": "Calculus for Engineering 1", "cr": 3, "cat": "core", "desc": "Vector algebra and derivatives and integrals of functions of one variable."}, {"key": "PHYS105", "col": 0, "short": "PHYS105", "name": "Physics for Engineering 1", "cr": 3, "cat": "core", "desc": "Fundamental physics: mechanics, matter, sound and thermodynamics."}, {"key": "PHYS115", "col": 0, "short": "PHYS115", "name": "Physics Laboratory 1", "cr": 1, "cat": "lab", "desc": "Lab experiments in mechanics, thermal physics and mechanical waves."}, {"key": "ENGR103", "col": 0, "short": "ENGR103", "name": "Engineering Materials", "cr": 3, "cat": "core", "desc": "Classification, microstructure and mechanical properties of engineering materials."}, {"key": "ENGR104", "col": 0, "short": "ENGR104", "name": "Engineering Drawing", "cr": 3, "cat": "core", "desc": "Orthographic projection, dimensioning and 3D engineering drawing."}, {"key": "ENGR191", "col": 0, "short": "ENGR191", "name": "Principle of Being Professional", "cr": 1, "cat": "ge", "desc": "Preparation for professional practice: discipline, institutional loyalty and ethics."}, {"key": "ENGL102", "col": 1, "short": "ENGL102", "name": "Fundamental English 2", "cr": 3, "cat": "ge", "desc": "Advanced English communication skills for complex social contexts and life-long learning."}, {"key": "PG104", "col": 1, "short": "PG104", "name": "Citizenship", "cr": 3, "cat": "ge", "desc": "Concept of citizenship, social awareness and positive attitudes for peaceful conflict resolution."}, {"key": "MATH162", "col": 1, "short": "MATH162", "name": "Calculus for Engineering 2", "cr": 3, "cat": "core", "desc": "First and second order differential equations, partial derivatives and multiple integrals."}, {"key": "PHYS106", "col": 1, "short": "PHYS106", "name": "Physics for Engineering 2", "cr": 3, "cat": "core", "desc": "Electromagnetism, DC and AC circuits, optics and introductory modern physics."}, {"key": "PHYS116", "col": 1, "short": "PHYS116", "name": "Physics Laboratory 2", "cr": 1, "cat": "lab", "desc": "Lab experiments in electricity, optics and modern physics."}, {"key": "CE102", "col": 1, "short": "CE102", "name": "Civil Engineering Fundamentals", "cr": 2, "cat": "major", "desc": "Introduction to civil engineering disciplines, professional responsibilities and sustainable development."}, {"key": "ENGR106", "col": 1, "short": "ENGR106", "name": "Workshop Technology", "cr": 1, "cat": "lab", "desc": "Workshop safety, hand tools, machining and rapid prototyping."}, {"key": "ENGR107", "col": 1, "short": "ENGR107", "name": "Engineering Mechanics 1", "cr": 3, "cat": "core", "desc": "Principles of statics and dynamics, force systems and equilibrium."}, {"key": "GE_ELEC1", "col": 1, "short": "GE Elec", "name": "Innovative Co-creator (GE)", "cr": 3, "cat": "elec", "desc": "Innovative Co-creator general-education course — chosen from the approved GE list."}, {"key": "ENGL201", "col": 2, "short": "ENGL201", "name": "Critical Reading & Effective Writing", "cr": 3, "cat": "ge", "desc": "Analytical reading from various sources and effective writing on topics of interest."}, {"key": "CS100", "col": 2, "short": "CS100", "name": "Information Technology & Modern Life", "cr": 3, "cat": "ge", "desc": "Computer usage, online collaboration, productivity software and IT security."}, {"key": "GEOL275", "col": 2, "short": "GEOL275", "name": "Geology for Engineers", "cr": 3, "cat": "core", "desc": "Minerals, rocks and geological processes relevant to civil engineering site investigations."}, {"key": "MATH261", "col": 2, "short": "MATH261", "name": "Calculus for Engineering 3", "cr": 3, "cat": "core", "desc": "Advanced calculus: vector calculus, complex variables and Fourier series."}, {"key": "STAT263", "col": 2, "short": "STAT263", "name": "Elementary Statistics", "cr": 3, "cat": "core", "desc": "Basic statistics, probability distributions, hypothesis testing and regression analysis."}, {"key": "CE211", "col": 2, "short": "CE211", "name": "Strength of Materials 1", "cr": 3, "cat": "major", "desc": "Analysis of stresses, strains, torsion and beam deflections in structural materials."}, {"key": "CE261", "col": 2, "short": "CE261", "name": "Hydraulics", "cr": 3, "cat": "major", "desc": "Fluid properties, hydrostatics and mechanics of flow in pipes and open channels."}, {"key": "ENGL225", "col": 3, "short": "ENGL225", "name": "English in Science & Technology", "cr": 3, "cat": "ge", "desc": "English language functions and skills for communication in science and technology contexts."}, {"key": "MATH362", "col": 3, "short": "MATH362", "name": "Applied Differential Equations", "cr": 3, "cat": "core", "desc": "Ordinary and partial differential equations, Laplace transforms and series solutions for engineering."}, {"key": "CE212", "col": 3, "short": "CE212", "name": "Theory & Analysis of Structures", "cr": 3, "cat": "major", "desc": "Analysis of determinate and indeterminate structures using classical and matrix methods."}, {"key": "CE216", "col": 3, "short": "CE216", "name": "Structural Materials & Testing", "cr": 4, "cat": "lab", "desc": "Concrete technology, structural material properties and standard material testing methods."}, {"key": "CE262", "col": 3, "short": "CE262", "name": "Hydraulic Models & Testing", "cr": 1, "cat": "lab", "desc": "Experiments on fluid measurements, flow through orifices and pump performance."}, {"key": "ENGR201", "col": 3, "short": "ENGR201", "name": "Computer Programming for Engineers", "cr": 3, "cat": "core", "desc": "High-level computer programming applied to solving engineering problems."}, {"key": "GE_ELEC2", "col": 3, "short": "GE Elec", "name": "General Education Elective", "cr": 3, "cat": "elec", "desc": "General-education elective — chosen from the approved GE list."}, {"key": "CE292", "col": 4, "short": "CE292", "name": "Diff. Eq. & Numerical Methods (CE)", "cr": 3, "cat": "major", "desc": "Numerical methods and application of differential equations to civil engineering systems."}, {"key": "CE311", "col": 4, "short": "CE311", "name": "Steel & Timber Structure Design", "cr": 4, "cat": "major", "desc": "Design of structural steel and timber members and connections."}, {"key": "CE336", "col": 4, "short": "CE336", "name": "Transportation Systems Engineering", "cr": 3, "cat": "major", "desc": "Multimodal transportation systems, planning principles and freight logistics infrastructure."}, {"key": "CE363", "col": 4, "short": "CE363", "name": "Engineering Hydrology", "cr": 3, "cat": "major", "desc": "Hydrologic cycle, precipitation, streamflow and groundwater hydrology."}, {"key": "CE371", "col": 4, "short": "CE371", "name": "Soil Mechanics", "cr": 3, "cat": "major", "desc": "Fundamental soil mechanics: classification, settlement analysis and shear strength."}, {"key": "CE372", "col": 4, "short": "CE372", "name": "Engineering Soil Tests", "cr": 1, "cat": "lab", "desc": "Standard lab and field tests for engineering properties of soils."}, {"key": "GE_ELEC3", "col": 4, "short": "GE Elec", "name": "General Education Elective", "cr": 3, "cat": "elec", "desc": "General-education elective — chosen from the approved GE list."}, {"key": "CE313", "col": 5, "short": "CE313", "name": "Reinforced Concrete Design", "cr": 4, "cat": "major", "desc": "Design of reinforced concrete beams, slabs, columns and foundations by ultimate strength methods."}, {"key": "CE333", "col": 5, "short": "CE333", "name": "Highway Engineering", "cr": 3, "cat": "major", "desc": "Highway planning, geometric design, traffic characteristics and pavement materials."}, {"key": "CE334", "col": 5, "short": "CE334", "name": "Highway Engineering Laboratory", "cr": 1, "cat": "lab", "desc": "Lab tests on road materials: soils, aggregates and bituminous mixtures."}, {"key": "CE343", "col": 5, "short": "CE343", "name": "Surveying for Civil Engineering", "cr": 4, "cat": "major", "desc": "Distance and angle measurement, leveling, topographic mapping and field-camp practice."}, {"key": "CE364", "col": 5, "short": "CE364", "name": "Water Resource Engineering", "cr": 3, "cat": "major", "desc": "Planning and design of water resource systems: reservoirs, dams and pipe networks."}, {"key": "CE374", "col": 5, "short": "CE374", "name": "Geotech. Eng. & Building Foundations", "cr": 3, "cat": "major", "desc": "Design of shallow and deep foundations, lateral earth pressure and slope stability."}, {"key": "FREE_ELEC1", "col": 5, "short": "Free Elec", "name": "Free Elective", "cr": 3, "cat": "elec", "desc": "Free elective — any course offered within the university."}, {"key": "CE400", "col": 6, "short": "CE400", "name": "Training in Civil Engineering", "cr": 3, "cat": "lab", "desc": "Supervised professional training in engineering organizations (min. 270 hours)."}, {"key": "CE413", "col": 7, "short": "CE413", "name": "Reinforced Concrete Building Design", "cr": 4, "cat": "major", "desc": "Design of reinforced concrete buildings including wind and seismic analysis."}, {"key": "CE451", "col": 7, "short": "CE451", "name": "Construction Techniques & Management", "cr": 3, "cat": "major", "desc": "Construction project management, cost estimation, scheduling and engineering economics."}, {"key": "MAJ_ELEC1", "col": 7, "short": "Major Elec", "name": "Major Elective", "cr": 3, "cat": "elec", "desc": "Major elective — advanced civil-engineering topic (e.g. Rail Engineering, BIM) from the approved list."}, {"key": "FREE_ELEC2", "col": 7, "short": "Free Elec", "name": "Free Elective", "cr": 3, "cat": "elec", "desc": "Free elective — any course offered within the university."}, {"key": "ENGR192", "col": 8, "short": "ENGR192", "name": "Skills for Professionalism & Entrep.", "cr": 1, "cat": "ge", "desc": "Professional and entrepreneurial skills including safety consciousness and moral awareness."}, {"key": "ENGR194", "col": 8, "short": "ENGR194", "name": "Values for Professional Entrepreneur", "cr": 1, "cat": "ge", "desc": "Characters and values for becoming a successful professional entrepreneur."}, {"key": "DESIGN_DEV", "col": 8, "short": "CE491-498", "name": "Civil Eng. Design Development", "cr": 3, "cat": "elec", "desc": "A course from the Civil Engineering Design Development category (CE 491-498)."}, {"key": "MAJ_ELEC2", "col": 8, "short": "Major Elec", "name": "Major Elective", "cr": 3, "cat": "elec", "desc": "Major elective — advanced civil-engineering topic (e.g. Rail Engineering, BIM) from the approved list."}], "edges": [{"s": "MATH161", "t": "MATH162", "co": false}, {"s": "MATH162", "t": "MATH261", "co": false}, {"s": "MATH261", "t": "MATH362", "co": false}, {"s": "PHYS105", "t": "PHYS106", "co": false}, {"s": "PHYS115", "t": "PHYS116", "co": false}, {"s": "CHEM162", "t": "CHEM167", "co": true}, {"s": "PHYS105", "t": "ENGR107", "co": false}, {"s": "MATH161", "t": "ENGR107", "co": false}, {"s": "ENGR107", "t": "CE211", "co": false}, {"s": "MATH162", "t": "CE292", "co": false}, {"s": "CE211", "t": "CE212", "co": false}, {"s": "ENGR103", "t": "CE216", "co": false}, {"s": "CE211", "t": "CE216", "co": false}, {"s": "ENGR104", "t": "CE311", "co": false}, {"s": "CE212", "t": "CE311", "co": false}, {"s": "CE216", "t": "CE313", "co": false}, {"s": "CE212", "t": "CE313", "co": false}, {"s": "CE313", "t": "CE413", "co": false}, {"s": "GEOL275", "t": "CE371", "co": false}, {"s": "CE261", "t": "CE371", "co": false}, {"s": "CE211", "t": "CE371", "co": false}, {"s": "CE371", "t": "CE372", "co": false}, {"s": "CE371", "t": "CE374", "co": false}, {"s": "CE372", "t": "CE374", "co": false}, {"s": "ENGR107", "t": "CE261", "co": false}, {"s": "CE261", "t": "CE262", "co": false}, {"s": "STAT263", "t": "CE363", "co": false}, {"s": "CE261", "t": "CE363", "co": false}, {"s": "CE363", "t": "CE364", "co": false}, {"s": "MATH162", "t": "CE343", "co": false}, {"s": "STAT263", "t": "CE343", "co": false}, {"s": "CE371", "t": "CE333", "co": false}, {"s": "CE372", "t": "CE334", "co": false}, {"s": "CE333", "t": "CE334", "co": false}, {"s": "CE313", "t": "CE451", "co": false}, {"s": "CE333", "t": "CE451", "co": false}, {"s": "ENGL101", "t": "ENGL102", "co": false}, {"s": "ENGL102", "t": "ENGL201", "co": false}, {"s": "ENGL102", "t": "ENGL225", "co": false}], "cats": {"ge": {"fill": "#DAE8FC", "stroke": "#6C8EBF", "label": "General Education"}, "core": {"fill": "#D5E8D4", "stroke": "#82B366", "label": "Core (Math/Sci/Basic Eng)"}, "major": {"fill": "#FFE6CC", "stroke": "#D79B00", "label": "Civil Major"}, "lab": {"fill": "#FFF2CC", "stroke": "#D6B656", "label": "Lab / Testing / Training"}, "elec": {"fill": "#F5F5F5", "stroke": "#999999", "label": "Elective (placeholder)"}}, "sems": [{"label": "Y1 S1", "cr": 21}, {"label": "Y1 S2", "cr": 22}, {"label": "Y2 S1", "cr": 21}, {"label": "Y2 S2", "cr": 20}, {"label": "Y3 S1", "cr": 20}, {"label": "Y3 S2", "cr": 21}, {"label": "Summer", "cr": 3}, {"label": "Y4 S1", "cr": 13}, {"label": "Y4 S2", "cr": 8}]};
+const DATA = {"nodes": [{"key": "ENGL101", "col": 0, "short": "ENGL101", "name": "Fundamental English 1", "cr": 3, "cat": "ge", "desc": "Basic listening, speaking, reading and writing skills in English for varied cultural contexts."}, {"key": "CHEM162", "col": 0, "short": "CHEM162", "name": "General Chemistry for Engineers", "cr": 3, "cat": "core", "desc": "Stoichiometry, atomic structure, chemical bonding, states of matter and reaction rates."}, {"key": "CHEM167", "col": 0, "short": "CHEM167", "name": "General Chemistry Laboratory", "cr": 1, "cat": "lab", "desc": "Basic chemistry lab experiments: gas constants, titrations and polymer synthesis."}, {"key": "MATH161", "col": 0, "short": "MATH161", "name": "Calculus for Engineering 1", "cr": 3, "cat": "core", "desc": "Vector algebra and derivatives and integrals of functions of one variable."}, {"key": "PHYS105", "col": 0, "short": "PHYS105", "name": "Physics for Engineering 1", "cr": 3, "cat": "core", "desc": "Fundamental physics: mechanics, matter, sound and thermodynamics."}, {"key": "PHYS115", "col": 0, "short": "PHYS115", "name": "Physics Laboratory 1", "cr": 1, "cat": "lab", "desc": "Lab experiments in mechanics, thermal physics and mechanical waves."}, {"key": "ENGR103", "col": 0, "short": "ENGR103", "name": "Engineering Materials", "cr": 3, "cat": "core", "desc": "Classification, microstructure and mechanical properties of engineering materials."}, {"key": "ENGR104", "col": 0, "short": "ENGR104", "name": "Engineering Drawing", "cr": 3, "cat": "core", "desc": "Orthographic projection, dimensioning and 3D engineering drawing."}, {"key": "ENGR191", "col": 0, "short": "ENGR191", "name": "Principle of Being Professional", "cr": 1, "cat": "ge", "desc": "Preparation for professional practice: discipline, institutional loyalty and ethics."}, {"key": "ENGL102", "col": 1, "short": "ENGL102", "name": "Fundamental English 2", "cr": 3, "cat": "ge", "desc": "Advanced English communication skills for complex social contexts and life-long learning."}, {"key": "PG104", "col": 1, "short": "PG104", "name": "Citizenship", "cr": 3, "cat": "ge", "desc": "Concept of citizenship, social awareness and positive attitudes for peaceful conflict resolution."}, {"key": "MATH162", "col": 1, "short": "MATH162", "name": "Calculus for Engineering 2", "cr": 3, "cat": "core", "desc": "First and second order differential equations, partial derivatives and multiple integrals."}, {"key": "PHYS106", "col": 1, "short": "PHYS106", "name": "Physics for Engineering 2", "cr": 3, "cat": "core", "desc": "Electromagnetism, DC and AC circuits, optics and introductory modern physics."}, {"key": "PHYS116", "col": 1, "short": "PHYS116", "name": "Physics Laboratory 2", "cr": 1, "cat": "lab", "desc": "Lab experiments in electricity, optics and modern physics."}, {"key": "CE102", "col": 1, "short": "CE102", "name": "Civil Engineering Fundamentals", "cr": 2, "cat": "major", "desc": "Introduction to civil engineering disciplines, professional responsibilities and sustainable development."}, {"key": "ENGR106", "col": 1, "short": "ENGR106", "name": "Workshop Technology", "cr": 1, "cat": "lab", "desc": "Workshop safety, hand tools, machining and rapid prototyping."}, {"key": "ENGR107", "col": 1, "short": "ENGR107", "name": "Engineering Mechanics 1", "cr": 3, "cat": "core", "desc": "Principles of statics and dynamics, force systems and equilibrium."}, {"key": "GE_ELEC1", "col": 1, "short": "GE Elec", "name": "Innovative Co-creator (GE)", "cr": 3, "cat": "elec", "desc": "Innovative Co-creator general-education course — chosen from the approved GE list."}, {"key": "ENGL201", "col": 2, "short": "ENGL201", "name": "Critical Reading & Effective Writing", "cr": 3, "cat": "ge", "desc": "Analytical reading from various sources and effective writing on topics of interest."}, {"key": "CS100", "col": 2, "short": "CS100", "name": "Information Technology & Modern Life", "cr": 3, "cat": "ge", "desc": "Computer usage, online collaboration, productivity software and IT security."}, {"key": "GEOL275", "col": 2, "short": "GEOL275", "name": "Geology for Engineers", "cr": 3, "cat": "core", "desc": "Minerals, rocks and geological processes relevant to civil engineering site investigations."}, {"key": "MATH261", "col": 2, "short": "MATH261", "name": "Calculus for Engineering 3", "cr": 3, "cat": "core", "desc": "Advanced calculus: vector calculus, complex variables and Fourier series."}, {"key": "STAT263", "col": 2, "short": "STAT263", "name": "Elementary Statistics", "cr": 3, "cat": "core", "desc": "Basic statistics, probability distributions, hypothesis testing and regression analysis."}, {"key": "CE211", "col": 2, "short": "CE211", "name": "Strength of Materials 1", "cr": 3, "cat": "major", "desc": "Analysis of stresses, strains, torsion and beam deflections in structural materials."}, {"key": "CE261", "col": 2, "short": "CE261", "name": "Hydraulics", "cr": 3, "cat": "major", "desc": "Fluid properties, hydrostatics and mechanics of flow in pipes and open channels."}, {"key": "ENGL225", "col": 3, "short": "ENGL225", "name": "English in Science & Technology", "cr": 3, "cat": "ge", "desc": "English language functions and skills for communication in science and technology contexts."}, {"key": "MATH362", "col": 3, "short": "MATH362", "name": "Applied Differential Equations", "cr": 3, "cat": "core", "desc": "Ordinary and partial differential equations, Laplace transforms and series solutions for engineering."}, {"key": "CE212", "col": 3, "short": "CE212", "name": "Theory & Analysis of Structures", "cr": 3, "cat": "major", "desc": "Analysis of determinate and indeterminate structures using classical and matrix methods."}, {"key": "CE216", "col": 3, "short": "CE216", "name": "Structural Materials & Testing", "cr": 4, "cat": "lab", "desc": "Concrete technology, structural material properties and standard material testing methods."}, {"key": "CE262", "col": 3, "short": "CE262", "name": "Hydraulic Models & Testing", "cr": 1, "cat": "lab", "desc": "Experiments on fluid measurements, flow through orifices and pump performance."}, {"key": "ENGR201", "col": 3, "short": "ENGR201", "name": "Computer Programming for Engineers", "cr": 3, "cat": "core", "desc": "High-level computer programming applied to solving engineering problems."}, {"key": "GE_ELEC2", "col": 3, "short": "GE Elec", "name": "General Education Elective", "cr": 3, "cat": "elec", "desc": "General-education elective — chosen from the approved GE list."}, {"key": "CE292", "col": 4, "short": "CE292", "name": "Diff. Eq. & Numerical Methods (CE)", "cr": 3, "cat": "major", "desc": "Numerical methods and application of differential equations to civil engineering systems."}, {"key": "CE311", "col": 4, "short": "CE311", "name": "Steel & Timber Structure Design", "cr": 4, "cat": "major", "desc": "Design of structural steel and timber members and connections."}, {"key": "CE336", "col": 4, "short": "CE336", "name": "Transportation Systems Engineering", "cr": 3, "cat": "major", "desc": "Multimodal transportation systems, planning principles and freight logistics infrastructure."}, {"key": "CE363", "col": 4, "short": "CE363", "name": "Engineering Hydrology", "cr": 3, "cat": "major", "desc": "Hydrologic cycle, precipitation, streamflow and groundwater hydrology."}, {"key": "CE371", "col": 4, "short": "CE371", "name": "Soil Mechanics", "cr": 3, "cat": "major", "desc": "Fundamental soil mechanics: classification, settlement analysis and shear strength."}, {"key": "CE372", "col": 4, "short": "CE372", "name": "Engineering Soil Tests", "cr": 1, "cat": "lab", "desc": "Standard lab and field tests for engineering properties of soils."}, {"key": "GE_ELEC3", "col": 4, "short": "GE Elec", "name": "General Education Elective", "cr": 3, "cat": "elec", "desc": "General-education elective — chosen from the approved GE list."}, {"key": "CE313", "col": 5, "short": "CE313", "name": "Reinforced Concrete Design", "cr": 4, "cat": "major", "desc": "Design of reinforced concrete beams, slabs, columns and foundations by ultimate strength methods."}, {"key": "CE333", "col": 5, "short": "CE333", "name": "Highway Engineering", "cr": 3, "cat": "major", "desc": "Highway planning, geometric design, traffic characteristics and pavement materials."}, {"key": "CE334", "col": 5, "short": "CE334", "name": "Highway Engineering Laboratory", "cr": 1, "cat": "lab", "desc": "Lab tests on road materials: soils, aggregates and bituminous mixtures."}, {"key": "CE343", "col": 5, "short": "CE343", "name": "Surveying for Civil Engineering", "cr": 4, "cat": "major", "desc": "Distance and angle measurement, leveling, topographic mapping and field-camp practice."}, {"key": "CE364", "col": 5, "short": "CE364", "name": "Water Resource Engineering", "cr": 3, "cat": "major", "desc": "Planning and design of water resource systems: reservoirs, dams and pipe networks."}, {"key": "CE374", "col": 5, "short": "CE374", "name": "Geotech. Eng. & Building Foundations", "cr": 3, "cat": "major", "desc": "Design of shallow and deep foundations, lateral earth pressure and slope stability."}, {"key": "FREE_ELEC1", "col": 5, "short": "Free Elec", "name": "Free Elective", "cr": 3, "cat": "elec", "desc": "Free elective — any course offered within the university."}, {"key": "CE400", "col": 6, "short": "CE400", "name": "Training in Civil Engineering", "cr": 3, "cat": "lab", "desc": "Supervised professional training in engineering organizations (min. 270 hours)."}, {"key": "CE413", "col": 7, "short": "CE413", "name": "Reinforced Concrete Building Design", "cr": 4, "cat": "major", "desc": "Design of reinforced concrete buildings including wind and seismic analysis."}, {"key": "CE451", "col": 7, "short": "CE451", "name": "Construction Techniques & Management", "cr": 3, "cat": "major", "desc": "Construction project management, cost estimation, scheduling and engineering economics."}, {"key": "MAJ_ELEC1", "col": 7, "short": "Major Elec", "name": "Major Elective", "cr": 3, "cat": "elec", "desc": "Major elective — advanced civil-engineering topic (e.g. Rail Engineering, BIM) from the approved list."}, {"key": "FREE_ELEC2", "col": 7, "short": "Free Elec", "name": "Free Elective", "cr": 3, "cat": "elec", "desc": "Free elective — any course offered within the university."}, {"key": "ENGR192", "col": 8, "short": "ENGR192", "name": "Skills for Professionalism & Entrep.", "cr": 1, "cat": "ge", "desc": "Professional and entrepreneurial skills including safety consciousness and moral awareness."}, {"key": "ENGR194", "col": 8, "short": "ENGR194", "name": "Values for Professional Entrepreneur", "cr": 1, "cat": "ge", "desc": "Characters and values for becoming a successful professional entrepreneur."}, {"key": "DESIGN_DEV", "col": 8, "short": "CE491-498", "name": "Civil Eng. Design Development", "cr": 3, "cat": "elec", "desc": "A course from the Civil Engineering Design Development category (CE 491-498)."}, {"key": "MAJ_ELEC2", "col": 8, "short": "Major Elec", "name": "Major Elective", "cr": 3, "cat": "elec", "desc": "Major elective — advanced civil-engineering topic (e.g. Rail Engineering, BIM) from the approved list."}], "edges": [{"s": "MATH161", "t": "MATH162", "co": false}, {"s": "MATH162", "t": "MATH261", "co": false}, {"s": "MATH261", "t": "MATH362", "co": false}, {"s": "PHYS105", "t": "PHYS106", "co": false}, {"s": "PHYS115", "t": "PHYS116", "co": false}, {"s": "CHEM162", "t": "CHEM167", "co": true}, {"s": "PHYS105", "t": "ENGR107", "co": false}, {"s": "MATH161", "t": "ENGR107", "co": false}, {"s": "ENGR107", "t": "CE211", "co": false}, {"s": "MATH162", "t": "CE292", "co": false}, {"s": "CE211", "t": "CE212", "co": false}, {"s": "ENGR103", "t": "CE216", "co": false}, {"s": "CE211", "t": "CE216", "co": false}, {"s": "ENGR104", "t": "CE311", "co": false}, {"s": "CE212", "t": "CE311", "co": false}, {"s": "CE216", "t": "CE313", "co": false}, {"s": "CE212", "t": "CE313", "co": false}, {"s": "CE313", "t": "CE413", "co": false}, {"s": "GEOL275", "t": "CE371", "co": false}, {"s": "CE261", "t": "CE371", "co": false}, {"s": "CE211", "t": "CE371", "co": false}, {"s": "CE371", "t": "CE372", "co": false}, {"s": "CE371", "t": "CE374", "co": false}, {"s": "CE372", "t": "CE374", "co": false}, {"s": "ENGR107", "t": "CE261", "co": false}, {"s": "CE261", "t": "CE262", "co": false}, {"s": "STAT263", "t": "CE363", "co": false}, {"s": "CE261", "t": "CE363", "co": false}, {"s": "CE363", "t": "CE364", "co": false}, {"s": "MATH162", "t": "CE343", "co": false}, {"s": "STAT263", "t": "CE343", "co": false}, {"s": "CE371", "t": "CE333", "co": false}, {"s": "CE372", "t": "CE334", "co": false}, {"s": "CE333", "t": "CE334", "co": false}, {"s": "CE313", "t": "CE451", "co": false}, {"s": "CE333", "t": "CE451", "co": false}, {"s": "ENGL101", "t": "ENGL102", "co": false}, {"s": "ENGL102", "t": "ENGL201", "co": false}, {"s": "ENGL102", "t": "ENGL225", "co": false}], "cats": {"ge": {"fill": "#DAE8FC", "stroke": "#6C8EBF", "label": "General Education"}, "core": {"fill": "#D5E8D4", "stroke": "#82B366", "label": "Core (Math/Sci/Basic Eng)"}, "major": {"fill": "#FFE6CC", "stroke": "#D79B00", "label": "Civil Major"}, "lab": {"fill": "#FFF2CC", "stroke": "#D6B656", "label": "Lab / Testing / Training"}, "elec": {"fill": "#F5F5F5", "stroke": "#999999", "label": "Elective (placeholder)"}, "custom": {"fill": "#E1D5E7", "stroke": "#9673A6", "label": "Added by student"}}, "sems": [{"label": "Y1 S1", "cr": 21}, {"label": "Y1 S2", "cr": 22}, {"label": "Y2 S1", "cr": 21}, {"label": "Y2 S2", "cr": 20}, {"label": "Y3 S1", "cr": 20}, {"label": "Y3 S2", "cr": 21}, {"label": "Summer", "cr": 3}, {"label": "Y4 S1", "cr": 13}, {"label": "Y4 S2", "cr": 8}]};
 // ===========================================================================
 //  Multi-student state. These objects start EMPTY and are filled, after login,
 //  from the Google Sheet (see SYNC LAYER at the bottom). localStorage is kept
@@ -484,6 +589,9 @@ const writeCache = () => { try {
   localStorage.setItem(cacheKey("cie_notes"),  JSON.stringify(notes));
   localStorage.setItem(cacheKey("cie_grades"), JSON.stringify(grades));
   localStorage.setItem(cacheKey("cie_elec"),   JSON.stringify(elec));
+  localStorage.setItem(cacheKey("cie_track"),  track);
+  localStorage.setItem(cacheKey("cie_moves"),  JSON.stringify(moves));   // TASK 3A
+  localStorage.setItem(cacheKey("cie_custom"), JSON.stringify(customs)); // TASK 3B
 } catch (e) {} };
 // save* keep the old names/call-sites; now they just refresh the local cache.
 // The Sheet write happens via syncCourse(key), called right after each save*.
@@ -492,30 +600,115 @@ const isElec=n=>n.cat==='elec';
 const elecCode=n=>(elec[n.key]&&elec[n.key].code)||n.short;          // displayed/registered code
 const elecName=n=>(elec[n.key]&&elec[n.key].name)||'';               // student-entered actual name
 
-// ---- geometry ----
+// ---- geometry (fixed; never depends on the curriculum) ----
 const COL_W=232, BOX_W=172, BOX_H=104, GAP=44, PAD=28, BODY_Y=14;
 const ROW_H=BOX_H+GAP, GUT=COL_W-BOX_W;
 const map=document.getElementById('map'), wires=document.getElementById('wires'), colsBar=document.getElementById('cols');
 const scroll=document.getElementById('scroll'), header=document.querySelector('header');
-const byKey={}; DATA.nodes.forEach(n=>byKey[n.key]=n);
-const NCOL=DATA.sems.length;
 const HOVER=window.matchMedia('(hover:hover)').matches;   // false on touch screens
+function clearObj(o){ for(const k in o) delete o[k]; return o; }   // wipe in place: ~40 call-sites close over these
 
-// adjacency
-const prereqsOf={}, unlocksOf={};
-DATA.edges.forEach(e=>{ (prereqsOf[e.t]=prereqsOf[e.t]||[]).push(e.s); (unlocksOf[e.s]=unlocksOf[e.s]||[]).push(e.t); });
+// ===========================================================================
+//  EFFECTIVE PLAN
+//  DATA is the pristine published curriculum and is NEVER mutated at runtime.
+//  PLAN is what THIS student actually studies = DATA + per-student overrides.
+//  Everything that renders or scores reads PLAN, not DATA. (DATA.cats and
+//  DATA.edges stay shared - colours and prerequisites do not differ per
+//  student - but edges are filtered to endpoints that exist in PLAN.)
+// ===========================================================================
+let track='regular';   // 'regular' | 'coop'     -- TASK 2 (track swap) fills this in
+const moves={};        // {course_key: col}      -- TASK 3 (drag-to-move) fills this in
+const customs={};      // {course_key: node} student-added courses -- TASK 3 fills this in
+                       // (keyed, not an array: it mirrors one backend row per course_key)
+// Major GPA = every CE-department subject: cat:'major' + the major electives + the CE
+// lab/testing subjects that live in cat:'lab'. DESIGN_DEV (CE491-498 capstone), GE_ELEC*
+// and FREE_ELEC* are NOT major. Regular track: 23 courses = 67 credits.
+// An explicit key set, not a /^MAJ_ELEC/ prefix test: task 3 lets students add arbitrary
+// courses and a prefix match would silently swallow them. New courses opt in with
+// majorGpa:true in their own literal (see planNodes, which seeds the flag).
+const MAJOR_GPA_KEYS = new Set(['MAJ_ELEC1','MAJ_ELEC2','CE216','CE262','CE334','CE372','CE400']);
+function isMajorGpa(n){ return n.majorGpa===true || n.cat==='major' || MAJOR_GPA_KEYS.has(n.key); }
+// ===========================================================================
+// TASK 2: TRACK SWAP -- co-op curriculum delta.
+// Source: CIE Year-End Meeting 2-68 deck, slide "Study Plans (Co-op track)".
+// Years 1-3 are identical in both tracks; only Year 4 + Summer differ:
+//   - CE400 (Training in Civil Eng., Summer / col 6) is dropped: no summer
+//     internship on the co-op track.
+//   - MAJ_ELEC1 (col 7) is dropped: co-op carries only ONE major elective
+//     (deck annotation: "less major elective course").
+//   - CE401 "Cooperative Education in Civil Engineering" (6 cr) is added
+//     alone in Y4 S1 (col 7).
+//   - CE413, CE451, FREE_ELEC2 move from col 7 -> col 8 (Y4 S2).
+// Column credit totals are NOT hard-coded: planNodes() sums PLAN.sems[i].cr from
+// whatever nodes land in each column, so Summer 0 / Y4S1 6 / Y4S2 18 (149 total)
+// fall out of this delta automatically.
+// Placed here (immediately before planNodes(), rather than next to TRACKS further
+// down) because `let PLAN=planNodes()` runs once at load time -- a `const`
+// declared after that point would still be in its temporal-dead-zone when
+// planNodes() first reads it.
+// ===========================================================================
+const TRACK_PLANS={
+  coop:{
+    drop:['CE400','MAJ_ELEC1'],
+    add:[
+      {key:'CE401', col:7, short:'CE401', name:'Cooperative Education in Civil Engineering', cr:6,
+       cat:'lab', majorGpa:true,
+       desc:'Full-semester supervised cooperative education placement in a civil engineering organisation (CMU code 251401).'}
+    ],
+    move:{CE413:8, CE451:8, FREE_ELEC2:8}
+  }
+};
+function validTrack(v){ return v==='coop' ? 'coop' : 'regular'; }   // unknown/absent value -> 'regular', never a broken map
+function planNodes(){
+  // deep-copy the node objects: later tasks mutate `col` on the copies only.
+  let nodes=DATA.nodes.map(n=>{ const c=Object.assign({},n); c.majorGpa=isMajorGpa(c); return c; });
+  // --- EXTENSION POINT (task 2): if(track==='coop') swap/relocate nodes + relabel sems here.
+  if(track==='coop'){
+    const tp=TRACK_PLANS.coop;
+    nodes=nodes.filter(n=>!tp.drop.includes(n.key))
+      .map(n=>(tp.move[n.key]!=null) ? Object.assign({},n,{col:tp.move[n.key]}) : n)
+      .concat(tp.add.map(n=>Object.assign({},n)));
+  }
+  // TASK 3B: student-added custom courses (free electives, repeats, off-plan subjects).
+  // Appended BEFORE the moves.forEach below so a custom course can itself be moved, exactly
+  // like a curriculum course. Each carries its own `col` (its home semester) already.
+  Object.keys(customs).forEach(k=>{ const cn=customs[k]; if(cn) nodes.push(Object.assign({},cn)); });
+  // --- EXTENSION POINT (task 3): apply `moves` (n.col=moves[n.key]) and append `customs` here.
+  // TASK 3A: applied LAST, after the track delta, so a student's own placement always
+  // wins over the track's. A key with no node (e.g. a course the co-op track drops) is
+  // simply inert; the value itself was range-checked on the way in (mvValidCol).
+  nodes.forEach(n=>{ if(moves[n.key]!=null) n.col=moves[n.key]; });
+  // Semester credits are SUMMED from the nodes actually in each column, so they stay
+  // correct after a track swap or a moved course instead of drifting from a fixed table.
+  const sems=DATA.sems.map((s,i)=>({label:s.label, cr:nodes.filter(n=>n.col===i).reduce((a,n)=>a+n.cr,0)}));
+  // free unit test: the untouched regular track must reproduce [21,22,21,20,20,21,3,13,8] = 149.
+  // (co-op legitimately differs -- Summer 0 / Y4S1 6 / Y4S2 18 -- and a custom course legitimately
+  // adds its own credits too, so both skip this check.)
+  if(track==='regular' && !Object.keys(moves).length && !Object.keys(customs).length) sems.forEach((s,i)=>{ if(DATA.sems[i]&&s.cr!==DATA.sems[i].cr)
+    console.warn('PLAN credit mismatch in '+s.label+': '+s.cr+' vs published '+DATA.sems[i].cr); });
+  return {nodes, sems};
+}
+let PLAN=planNodes();
+
+// ---- derived map state: ALL of this is recomputed by rebuildMap() ----
+// kept as const containers and wiped in place - reassigning them would strand the
+// ~40 call-sites elsewhere in this file that close over the identifiers.
+const byKey={}, prereqsOf={}, unlocksOf={}, pos={}, rowOf={}, outE={}, inE={}, nodeEl={};
+const order=[], wireMeta=[];
+let NCOL=0, maxRows=0, mapW=0, mapH=0;
+
 function closure(start, adj){
   const seen=new Set(), stack=[...(adj[start]||[])];
   while(stack.length){const x=stack.pop(); if(seen.has(x))continue; seen.add(x); (adj[x]||[]).forEach(p=>stack.push(p));}
   return seen;
 }
+// memoised transitive closures - CLEARED on every rebuild. A track swap changes the edge
+// set, and a stale closure makes highlight() glow courses that are no longer on the map.
 const ancCache={}, descCache={};
 const ancestors=k=>ancCache[k]||(ancCache[k]=closure(k,prereqsOf));
 const descendants=k=>descCache[k]||(descCache[k]=closure(k,unlocksOf));
 
 // ---- barycenter ordering (vertical moves to cut crossings) ----
-const order=[]; for(let c=0;c<NCOL;c++) order[c]=[];
-DATA.nodes.forEach(n=>order[n.col].push(n.key));
 function posIndex(){const m={}; for(let c=0;c<NCOL;c++) order[c].forEach((k,i)=>m[k]=i); return m;}
 function sweep(dir){
   const idx=posIndex(); const range=dir>0?[...Array(NCOL).keys()]:[...Array(NCOL).keys()].reverse();
@@ -529,76 +722,25 @@ function sweep(dir){
     order[c].sort((a,b)=>bary[a]-bary[b]);
   }
 }
-for(let s=0;s<6;s++){ sweep(1); sweep(-1); }
+// relayout=true  : seed from the plan and run the 6 barycenter sweeps (initial load, track swap)
+// relayout=false : keep each column in its PREVIOUS vertical order (task 3: moving one box
+//                  must not re-shuffle the whole map); new keys fall to the bottom.
+function orderColumns(relayout){
+  const prev=Object.assign({},rowOf);
+  order.length=0; for(let c=0;c<NCOL;c++) order[c]=[];
+  PLAN.nodes.forEach(n=>order[n.col].push(n.key));
+  if(relayout){ for(let s=0;s<6;s++){ sweep(1); sweep(-1); } }
+  else { const r=k=>(prev[k]==null?1e6:prev[k]); for(let c=0;c<NCOL;c++) order[c].sort((a,b)=>r(a)-r(b)); }
+}
 
-// ---- positions ----
-const pos={}, rowOf={};
-for(let c=0;c<NCOL;c++) order[c].forEach((k,i)=>{ rowOf[k]=i; pos[k]={x:PAD+c*COL_W, y:BODY_Y+i*ROW_H}; });
-let maxRows=0; for(let c=0;c<NCOL;c++) maxRows=Math.max(maxRows,order[c].length);
-const mapW=PAD*2+(NCOL-1)*COL_W+BOX_W, mapH=BODY_Y+maxRows*ROW_H+10;
-map.style.width=mapW+"px"; map.style.height=mapH+"px"; colsBar.style.width=mapW+"px";
-wires.setAttribute("width",mapW); wires.setAttribute("height",mapH); wires.setAttribute("viewBox","0 0 "+mapW+" "+mapH);
-
-// ---- sticky column headers ----
-DATA.sems.forEach((s,i)=>{
-  const h=document.createElement('div'); h.className='colhdr';
-  h.style.left=(PAD+i*COL_W)+"px"; h.style.width=BOX_W+"px";
-  h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>'; colsBar.appendChild(h);
-});
-
-// ---- nodes ----
+// ---- node select options ----
 const GRADES=['A','B+','B','C+','C','D+','D','F','W','S','CS','U','I','P'];
 const GRADE_OPTS=GRADES.map(g=>'<option value="'+g+'">'+g+'</option>').join('');
-const nodeEl={};
-DATA.nodes.forEach(n=>{
-  const c=DATA.cats[n.cat];
-  const el=document.createElement('div'); el.className='node'; el.dataset.key=n.key;
-  el.style.left=pos[n.key].x+"px"; el.style.top=pos[n.key].y+"px";
-  el.style.width=BOX_W+"px"; el.style.height=BOX_H+"px";
-  el.style.setProperty('--cf',c.fill); el.style.setProperty('--cs',c.stroke);
-  const codeHtml = isElec(n)
-    ? '<input class="ecode" title="edit registered course code" value="'+esc(elecCode(n))+'">'
-    : '<div class="code">'+n.short+'</div>';
-  const elecNameHtml = isElec(n)
-    ? '<input class="ename" title="actual course name" placeholder="actual course name…" value="'+esc(elecName(n))+'">'
-    : '';
-  el.innerHTML=codeHtml+'<div class="nm">'+n.name+'</div>'+elecNameHtml+
-    '<div class="cr">'+n.cr+' Credit</div>'+
-    '<span class="retakes"></span>'+
-    '<select class="grade" title="grade received"><option value="">-</option>'+GRADE_OPTS+'</select>'+
-    '<div class="star" title="star">★</div><div class="dot"></div>';
-  if(isElec(n)) el.classList.add('elec');
-  if(stars[n.key]) el.classList.add('starred');
-  if(notes[n.key] && notes[n.key].trim()) el.classList.add('hasnote');
-  map.appendChild(el); nodeEl[n.key]=el;
-  el.addEventListener('click',e=>{ const t=e.target;
-    if(t.classList.contains('star')||t.classList.contains('grade')||t.closest('.retakes')||t.classList.contains('ecode')||t.classList.contains('ename')) return;
-    tapNode(n.key);   // unified: 1st click = glow, 2nd click = info, again = clear
-  });
-  el.querySelector('.star').addEventListener('click',e=>{e.stopPropagation(); toggleStar(n.key);});
-  paintNode(n.key);   // fill grade + retake-chain selects from grades[key] (compound "F>F>A")
-  // delegated: any grade/retake select change recombines the attempt chain, then repaints
-  el.addEventListener('mousedown',e=>{ if(e.target.matches('.grade, .retakes select')) e.stopPropagation(); });
-  el.addEventListener('change',e=>{
-    if(!e.target.matches('.grade, .retakes select')) return;
-    e.stopPropagation(); setGrade(n.key, combineAttempts(el)); paintNode(n.key);
-  });
-  if(isElec(n)){
-    const setElec=(f,v)=>{ elec[n.key]=elec[n.key]||{}; if(v) elec[n.key][f]=v; else delete elec[n.key][f]; if(!Object.keys(elec[n.key]).length) delete elec[n.key]; saveElec(); syncExtra(n.key); };
-    el.querySelectorAll('.ecode,.ename').forEach(inp=>{ inp.addEventListener('mousedown',e=>e.stopPropagation()); inp.addEventListener('click',e=>e.stopPropagation()); });
-    el.querySelector('.ecode').addEventListener('input',e=>setElec('code',e.target.value.trim()));
-    el.querySelector('.ename').addEventListener('input',e=>setElec('name',e.target.value.trim()));
-  }
-});
 
-// ---- edge attach ordering ----
-const outE={}, inE={};
-DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t])return; (outE[e.s]=outE[e.s]||[]).push(e); (inE[e.t]=inE[e.t]||[]).push(e); });
+// ---- edge attach ordering key ----
 // order by vertical position of the other end: top target -> top out-slot, top source -> top in-slot.
 // keeps the fan non-crossing AND lets the closest box take the nearest slot (closest-first).
 const rk=k=>rowOf[k]+byKey[k].col*0.001;
-for(const k in outE) outE[k].sort((a,b)=>rk(a.t)-rk(b.t));
-for(const k in inE)  inE[k].sort((a,b)=>rk(a.s)-rk(b.s));
 
 // ---- rounded orthogonal path ----
 function roundPath(pts,r){
@@ -626,57 +768,200 @@ function gapIndexNear(y){                             // nearest global row-gap 
   let gi=Math.round((y-BODY_Y-BOX_H-GAP/2)/ROW_H);
   return Math.max(0, Math.min(Math.max(0,maxRows-2), gi));
 }
-// pass 1: compute attach points + which gutter(s)/lane each edge wants
-const wireInfo=[]; const GUT_GROUP={}, LANE_GROUP={};
-DATA.edges.forEach(e=>{
-  if(!byKey[e.s]||!byKey[e.t]) return;
-  const s=byKey[e.s], t=byKey[e.t], sp=pos[e.s], tp=pos[e.t];
-  const ko=outE[e.s].length, io=outE[e.s].indexOf(e);
-  const ki=inE[e.t].length,  ii=inE[e.t].indexOf(e);
-  const ay=sp.y+BOX_H*slotFracs(ko)[io], by=tp.y+BOX_H*slotFracs(ki)[ii];  // fixed slots: out=right, in=left
-  const span=t.col-s.col;
-  const inf={e,sp,tp,ay,by,span};
-  if(span<=1){ inf.g1=s.col; }                       // single gutter (same col or adjacent)
-  else { inf.g1=s.col; inf.g2=t.col-1; inf.gap=gapIndexNear((ay+by)/2); }
-  wireInfo.push(inf);
-  (GUT_GROUP[inf.g1]=GUT_GROUP[inf.g1]||[]).push({inf,side:1});
-  if(inf.g2!=null) (GUT_GROUP[inf.g2]=GUT_GROUP[inf.g2]||[]).push({inf,side:2});
-  if(inf.gap!=null) (LANE_GROUP[inf.gap]=LANE_GROUP[inf.gap]||[]).push(inf);
-});
-// pass 2: assign a distinct x-slot per gutter and y-slot per lane so wires never coincide
-Object.keys(GUT_GROUP).forEach(g=>{
-  const list=GUT_GROUP[g];
-  list.sort((a,b)=>(a.side===1?a.inf.ay:a.inf.by)-(b.side===1?b.inf.ay:b.inf.by));
-  const n=list.length, step=Math.min(11,(GUT-16)/Math.max(1,n-1));
-  const x0=gutLeft(+g)+GUT/2-(n-1)*step/2;           // center the bundle in the gutter (middle of the gap)
-  list.forEach((r,i)=>{ const x=x0+i*step; if(r.side===1) r.inf.x1=x; else r.inf.x2=x; });
-});
-Object.keys(LANE_GROUP).forEach(gi=>{
-  const list=LANE_GROUP[gi]; list.sort((a,b)=>a.ay-b.ay);
-  const yTop=BODY_Y+(+gi)*ROW_H+BOX_H, n=list.length, step=Math.min(8,(GAP-12)/Math.max(1,n-1));
-  const y0=yTop+GAP/2-(n-1)*step/2;                  // center the lane bundle in the row-gap
-  list.forEach((inf,i)=>{ inf.laneY=y0+i*step; });
-});
-// pass 3: draw
-const wireMeta=[];
-wireInfo.forEach(inf=>{
-  const {e,sp,tp,ay,by,span}=inf;
-  const sxR=sp.x+BOX_W, txL=tp.x, txR=tp.x+BOX_W;
-  let pts;
-  if(span===1 && Math.abs(ay-by)<0.5){               // same row, slots aligned: straight line, no curve
-    pts=[[sxR,ay],[txL,by]];
-  }else if(span===0){                                // same column: short hop in right gutter
-    pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txR,by]];
-  }else if(span===1){                                // adjacent: one vertical in the gutter
-    pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txL,by]];
-  }else{                                             // span>=2: gutter -> row-gap lane -> gutter
-    pts=[[sxR,ay],[inf.x1,ay],[inf.x1,inf.laneY],[inf.x2,inf.laneY],[inf.x2,by],[txL,by]];
+
+// ---- one node box: created once, then reused across rebuilds ----
+function createNodeEl(n){
+  const c=DATA.cats[n.cat]||FALLBACK_CAT;   // TASK 3B: a malformed stored/custom category must never throw
+  const el=document.createElement('div'); el.className='node'; el.dataset.key=n.key;
+  el.style.width=BOX_W+"px"; el.style.height=BOX_H+"px";
+  el.style.setProperty('--cf',c.fill); el.style.setProperty('--cs',c.stroke);
+  const codeHtml = isElec(n)
+    ? '<input class="ecode" title="edit registered course code" value="'+esc(elecCode(n))+'">'
+    : '<div class="code">'+n.short+'</div>';
+  const elecNameHtml = isElec(n)
+    ? '<input class="ename" title="actual course name" placeholder="actual course name…" value="'+esc(elecName(n))+'">'
+    : '';
+  el.innerHTML=codeHtml+'<div class="nm">'+n.name+'</div>'+elecNameHtml+
+    '<div class="cr">'+n.cr+' Credit</div>'+
+    '<span class="retakes"></span>'+
+    '<select class="grade" title="grade received"><option value="">-</option>'+GRADE_OPTS+'</select>'+
+    '<div class="star" title="star">★</div><div class="dot"></div>'+
+    '<div class="mvh" tabindex="0" role="button" title="move to another semester" aria-label="move '+esc(n.short)+' to another semester">⠿</div>';
+  if(isElec(n)) el.classList.add('elec');
+  if(stars[n.key]) el.classList.add('starred');
+  if(notes[n.key] && notes[n.key].trim()) el.classList.add('hasnote');
+  el.addEventListener('click',e=>{ const t=e.target;
+    if(t.classList.contains('star')||t.classList.contains('grade')||t.closest('.retakes')||t.classList.contains('ecode')||t.classList.contains('ename')||t.classList.contains('mvh')) return;
+    tapNode(n.key);   // unified: 1st click = glow, 2nd click = info, again = clear
+  });
+  el.querySelector('.star').addEventListener('click',e=>{e.stopPropagation(); toggleStar(n.key);});
+  const mvh=el.querySelector('.mvh');   // TASK 3A: drag OR tap -> "Move to…" (see the MOVE block below)
+  mvh.addEventListener('pointerdown',e=>mvPointerDown(e,n.key));
+  mvh.addEventListener('click',e=>e.stopPropagation());
+  mvh.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); e.stopPropagation(); openMoveMenu(n.key); } });
+  // delegated: any grade/retake select change recombines the attempt chain, then repaints
+  el.addEventListener('mousedown',e=>{ if(e.target.matches('.grade, .retakes select')) e.stopPropagation(); });
+  el.addEventListener('change',e=>{
+    if(!e.target.matches('.grade, .retakes select')) return;
+    e.stopPropagation(); setGrade(n.key, combineAttempts(el)); paintNode(n.key);
+  });
+  if(isElec(n)){
+    const setElec=(f,v)=>{ elec[n.key]=elec[n.key]||{}; if(v) elec[n.key][f]=v; else delete elec[n.key][f]; if(!Object.keys(elec[n.key]).length) delete elec[n.key]; saveElec(); syncExtra(n.key); };
+    el.querySelectorAll('.ecode,.ename').forEach(inp=>{ inp.addEventListener('mousedown',e=>e.stopPropagation()); inp.addEventListener('click',e=>e.stopPropagation()); });
+    el.querySelector('.ecode').addEventListener('input',e=>setElec('code',e.target.value.trim()));
+    el.querySelector('.ename').addEventListener('input',e=>setElec('name',e.target.value.trim()));
   }
-  const p=document.createElementNS("http://www.w3.org/2000/svg","path");
-  p.setAttribute("d",roundPath(pts,6)); p.setAttribute("class","wire"+(e.co?" co":""));
-  p.setAttribute("marker-end","url(#arw)");
-  wires.appendChild(p); wireMeta.push({el:p,s:e.s,t:e.t});
-});
+  return el;
+}
+// refresh a SURVIVING box's static text/colour without touching the .ecode/.ename inputs
+// (they carry the student's own typing on a 400ms sync debounce) or its listeners.
+function paintNodeStatic(el,n){
+  const c=DATA.cats[n.cat]||FALLBACK_CAT;   // TASK 3B: same defensive fallback as createNodeEl
+  el.style.setProperty('--cf',c.fill); el.style.setProperty('--cs',c.stroke);
+  el.classList.toggle('elec', isElec(n));
+  const code=el.querySelector('.code'); if(code) code.textContent=n.short;
+  const nm=el.querySelector('.nm');     if(nm)   nm.textContent=n.name;
+  const cr=el.querySelector('.cr');     if(cr)   cr.textContent=n.cr+' Credit';
+}
+
+// ===========================================================================
+//  rebuildMap() - the ONE render path. Runs at startup and again whenever PLAN
+//  changes (task 2 track swap, task 3 drag-to-move / add course). Idempotent:
+//  it tears its own output down first and preserves the user's view state.
+//  relayout: true = re-run the barycenter sweeps, false = keep the current rows.
+// ===========================================================================
+function rebuildMap(relayout){
+  if(relayout===undefined) relayout=true;
+  // Re-derive the plan HERE, so no caller can forget to. track/moves/customs are the only
+  // inputs; every one of them changes what planNodes() returns.
+  PLAN=planNodes();
+  // ---- remember view state ----
+  const keepL=scroll.scrollLeft, keepT=scroll.scrollTop;
+  const keepPinned=pinned, keepPanel=curPanel;
+
+  // ---- derive from PLAN ----
+  clearObj(byKey); PLAN.nodes.forEach(n=>byKey[n.key]=n);
+  NCOL=PLAN.sems.length;
+  TOTAL_CR=PLAN.sems.reduce((s,x)=>s+x.cr,0);
+  const bc=document.getElementById('brandCr'); if(bc) bc.textContent=TOTAL_CR;
+
+  // adjacency (edges live in DATA; drop any whose endpoints are not in this PLAN,
+  // otherwise a dropped course leaves a dangling wire)
+  clearObj(prereqsOf); clearObj(unlocksOf);
+  DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t]) return;
+    (prereqsOf[e.t]=prereqsOf[e.t]||[]).push(e.s); (unlocksOf[e.s]=unlocksOf[e.s]||[]).push(e.t); });
+  clearObj(ancCache); clearObj(descCache);      // the closures above just changed
+
+  // ---- vertical ordering + positions ----
+  orderColumns(relayout);
+  clearObj(pos); clearObj(rowOf);
+  for(let c=0;c<NCOL;c++) order[c].forEach((k,i)=>{ rowOf[k]=i; pos[k]={x:PAD+c*COL_W, y:BODY_Y+i*ROW_H}; });
+  maxRows=0; for(let c=0;c<NCOL;c++) maxRows=Math.max(maxRows,order[c].length);
+  mapW=PAD*2+(NCOL-1)*COL_W+BOX_W; mapH=BODY_Y+maxRows*ROW_H+10;
+  map.style.width=mapW+"px"; map.style.height=mapH+"px"; colsBar.style.width=mapW+"px";
+  wires.setAttribute("width",mapW); wires.setAttribute("height",mapH); wires.setAttribute("viewBox","0 0 "+mapW+" "+mapH);
+
+  // ---- sticky column headers (re-created, never appended twice) ----
+  colsBar.innerHTML='';   // #cols holds nothing but .colhdr, so this is safe
+  PLAN.sems.forEach((s,i)=>{
+    const h=document.createElement('div'); h.className='colhdr';
+    h.style.left=(PAD+i*COL_W)+"px"; h.style.width=BOX_W+"px";
+    h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>'; colsBar.appendChild(h);
+  });
+
+  // ---- nodes: keyed diff. Survivors keep their DOM, classes, listeners and any
+  //      in-progress typing; only new keys are built and only extinct keys removed.
+  const live={};
+  PLAN.nodes.forEach(n=>{
+    live[n.key]=1;
+    let el=nodeEl[n.key];
+    if(!el){ el=createNodeEl(n); map.appendChild(el); nodeEl[n.key]=el; }
+    else paintNodeStatic(el,n);
+    el.style.left=pos[n.key].x+"px"; el.style.top=pos[n.key].y+"px";
+  });
+  Object.keys(nodeEl).forEach(k=>{ if(!live[k]){ nodeEl[k].remove(); delete nodeEl[k]; } });
+
+  // ---- edge attach ordering ----
+  clearObj(outE); clearObj(inE);
+  DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t])return; (outE[e.s]=outE[e.s]||[]).push(e); (inE[e.t]=inE[e.t]||[]).push(e); });
+  for(const k in outE) outE[k].sort((a,b)=>rk(a.t)-rk(b.t));
+  for(const k in inE)  inE[k].sort((a,b)=>rk(a.s)-rk(b.s));
+
+  // ---- wires: drop only the paths WE made; the <defs> (glow filter + arrowhead
+  //      markers #arw/#arwC/#arwD) must survive or every arrowhead vanishes.
+  wireMeta.forEach(w=>{ if(w.el&&w.el.parentNode) w.el.parentNode.removeChild(w.el); });
+  wireMeta.length=0;
+  // pass 1: attach points + which gutter(s)/lane each edge wants
+  const wireInfo=[]; const GUT_GROUP={}, LANE_GROUP={};
+  DATA.edges.forEach(e=>{
+    if(!byKey[e.s]||!byKey[e.t]) return;
+    const s=byKey[e.s], t=byKey[e.t], sp=pos[e.s], tp=pos[e.t];
+    const ko=outE[e.s].length, io=outE[e.s].indexOf(e);
+    const ki=inE[e.t].length,  ii=inE[e.t].indexOf(e);
+    const ay=sp.y+BOX_H*slotFracs(ko)[io], by=tp.y+BOX_H*slotFracs(ki)[ii];  // fixed slots: out=right, in=left
+    const span=t.col-s.col;
+    const inf={e,sp,tp,ay,by,span};
+    // TASK 3A: span<0 = the prerequisite now sits AFTER its dependent (a student move).
+    // Mirrors the span>=2 case but backwards: out of the source's LEFT gutter, along a
+    // row-gap lane, into the target's RIGHT gutter. Without this it fell into the span===1
+    // branch and drew a straight right-to-left segment THROUGH the boxes in between.
+    if(span<0){ inf.g1=s.col-1; inf.g2=t.col; inf.gap=gapIndexNear((ay+by)/2); inf.back=true; }
+    else if(span<=1){ inf.g1=s.col; }                  // single gutter (same col or adjacent)
+    else { inf.g1=s.col; inf.g2=t.col-1; inf.gap=gapIndexNear((ay+by)/2); }
+    wireInfo.push(inf);
+    (GUT_GROUP[inf.g1]=GUT_GROUP[inf.g1]||[]).push({inf,side:1});
+    if(inf.g2!=null) (GUT_GROUP[inf.g2]=GUT_GROUP[inf.g2]||[]).push({inf,side:2});
+    if(inf.gap!=null) (LANE_GROUP[inf.gap]=LANE_GROUP[inf.gap]||[]).push(inf);
+  });
+  // pass 2: assign a distinct x-slot per gutter and y-slot per lane so wires never coincide
+  Object.keys(GUT_GROUP).forEach(g=>{
+    const list=GUT_GROUP[g];
+    list.sort((a,b)=>(a.side===1?a.inf.ay:a.inf.by)-(b.side===1?b.inf.ay:b.inf.by));
+    const n=list.length, step=Math.min(11,(GUT-16)/Math.max(1,n-1));
+    const x0=gutLeft(+g)+GUT/2-(n-1)*step/2;           // center the bundle in the gutter (middle of the gap)
+    list.forEach((r,i)=>{ const x=x0+i*step; if(r.side===1) r.inf.x1=x; else r.inf.x2=x; });
+  });
+  Object.keys(LANE_GROUP).forEach(gi=>{
+    const list=LANE_GROUP[gi]; list.sort((a,b)=>a.ay-b.ay);
+    const yTop=BODY_Y+(+gi)*ROW_H+BOX_H, n=list.length, step=Math.min(8,(GAP-12)/Math.max(1,n-1));
+    const y0=yTop+GAP/2-(n-1)*step/2;                  // center the lane bundle in the row-gap
+    list.forEach((inf,i)=>{ inf.laneY=y0+i*step; });
+  });
+  // pass 3: draw
+  wireInfo.forEach(inf=>{
+    const {e,sp,tp,ay,by,span}=inf;
+    const sxR=sp.x+BOX_W, txL=tp.x, txR=tp.x+BOX_W;
+    let pts;
+    if(inf.back){                                      // span<0: left gutter -> lane -> target's right edge
+      const bx1=Math.max(6,inf.x1), bx2=Math.min(mapW-6,inf.x2);   // clamp: col 0 / last col have no outer gutter
+      pts=[[sp.x,ay],[bx1,ay],[bx1,inf.laneY],[bx2,inf.laneY],[bx2,by],[txR,by]];
+    }else if(span===1 && Math.abs(ay-by)<0.5){         // same row, slots aligned: straight line, no curve
+      pts=[[sxR,ay],[txL,by]];
+    }else if(span===0){                                // same column: short hop in right gutter
+      pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txR,by]];
+    }else if(span===1){                                // adjacent: one vertical in the gutter
+      pts=[[sxR,ay],[inf.x1,ay],[inf.x1,by],[txL,by]];
+    }else{                                             // span>=2: gutter -> row-gap lane -> gutter
+      pts=[[sxR,ay],[inf.x1,ay],[inf.x1,inf.laneY],[inf.x2,inf.laneY],[inf.x2,by],[txL,by]];
+    }
+    const p=document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d",roundPath(pts,6)); p.setAttribute("class","wire"+(e.co?" co":"")+(inf.back?" back":""));
+    p.setAttribute("marker-end","url(#arw)");
+    wires.appendChild(p); wireMeta.push({el:p,s:e.s,t:e.t});
+  });
+
+  // ---- restore everything derived from the fresh map ----
+  repaintNodes();      // paintNode (grades + retake chain) + star/note/elec + counts + GPA panel
+  applySearch();       // keep whatever is typed in the search box
+  applyFilters();      // category chips + starred-only + intern/co-op rings
+  setZoom(z);          // keep the zoom level (and the <0.45 code-only threshold)
+  scroll.scrollLeft=keepL; scroll.scrollTop=keepT;
+  // pinned glow + open side panel, but only if those courses still exist in the PLAN
+  if(keepPinned && byKey[keepPinned]){ pinned=keepPinned; clearHi(); highlight(keepPinned); }
+  else pinned=null;
+  if(keepPanel && byKey[keepPanel]) openPanel(keepPanel);
+  else if(keepPanel){ curPanel=null; panel.classList.remove('open'); }
+}
 
 // ---- highlight both ways ----
 let pinned=null;
@@ -685,7 +970,7 @@ function highlight(key){
   map.classList.add('dimmed');
   up.forEach(k=>nodeEl[k]&&nodeEl[k].classList.add('glow','up'));
   down.forEach(k=>nodeEl[k]&&nodeEl[k].classList.add('glow','down'));
-  nodeEl[key].classList.add('glow','root');
+  if(nodeEl[key]) nodeEl[key].classList.add('glow','root');
   wireMeta.forEach(w=>{
     if(set.has(w.s)&&set.has(w.t)){
       w.el.classList.add('glow');
@@ -705,7 +990,7 @@ function clearHi(){
 let starsOnly=false;
 function toggleStar(key){
   if(stars[key]) delete stars[key]; else stars[key]=1;
-  saveStars(); syncExtra(key); nodeEl[key].classList.toggle('starred',!!stars[key]);
+  saveStars(); syncExtra(key); if(nodeEl[key]) nodeEl[key].classList.toggle('starred',!!stars[key]);
   if(curPanel===key) syncPanelStar();
   if(starsOnly) applyFilters();
   updateCounts();
@@ -730,9 +1015,9 @@ let trackOn=null;
 function applyFilters(){
   const tv = trackOn ? evalTrack(trackOn) : null;          // {rows:[{key,ok}], ...}
   const req = {}; if(tv) tv.rows.forEach(r=>req[r.key]=r.ok);
-  DATA.nodes.forEach(n=>{
+  PLAN.nodes.forEach(n=>{
     const off=!activeCats.has(n.cat) || (starsOnly && !stars[n.key]);
-    const el=nodeEl[n.key];
+    const el=nodeEl[n.key]; if(!el) return;
     el.classList.toggle('hidden',off);
     const inTrack = tv && (n.key in req);
     el.classList.toggle('req-pass', !!(inTrack && req[n.key]));
@@ -740,20 +1025,23 @@ function applyFilters(){
     el.classList.toggle('dimtrack', !!(tv && !inTrack));
   });
   wireMeta.forEach(w=>{
-    const hide=nodeEl[w.s].classList.contains('hidden')||nodeEl[w.t].classList.contains('hidden');
+    const a=nodeEl[w.s], b=nodeEl[w.t];
+    const hide=!a||!b||a.classList.contains('hidden')||b.classList.contains('hidden');
     w.el.style.display=hide?'none':'';
   });
 }
 
 // ---- search ----
 const search=document.getElementById('search');
-search.addEventListener('input',()=>{
+// declared (not a const arrow) so rebuildMap() can re-apply the live query to fresh boxes
+function applySearch(){
   const q=search.value.trim().toLowerCase();
-  DATA.nodes.forEach(n=>{
+  PLAN.nodes.forEach(n=>{
     const hit=!q||n.short.toLowerCase().includes(q)||n.name.toLowerCase().includes(q)||n.key.toLowerCase().includes(q);
-    nodeEl[n.key].classList.toggle('faded',!hit);
+    const el=nodeEl[n.key]; if(el) el.classList.toggle('faded',!hit);
   });
-});
+}
+search.addEventListener('input',applySearch);
 
 // ---- counts ----
 const counts=document.getElementById('counts');
@@ -766,8 +1054,8 @@ function updateCounts(){
 const GPOINTS={A:4,'B+':3.5,B:3,'C+':2.5,C:2,'D+':1.5,D:1,F:0};
 const PASSING=new Set(['A','B+','B','C+','C','D+','D']);  // counts toward credits studied
 const CREDIT_NOGPA=new Set(['S','CS']);  // earn credit, no GPA points
-const TOTAL_CR=DATA.sems.reduce((s,x)=>s+x.cr,0);
-function semLabel(col){ const l=DATA.sems[col].label; if(/summer/i.test(l)) return 'Summer';
+let TOTAL_CR=PLAN.sems.reduce((s,x)=>s+x.cr,0);   // recomputed by rebuildMap() from PLAN
+function semLabel(col){ const l=PLAN.sems[col].label; if(/summer/i.test(l)) return 'Summer';
   const m=l.match(/Y(\d)\s*S(\d)/i); return m?('Year '+m[1]+' Semester '+m[2]):l; }
 // compound grade helpers: a retaken F is stored as "F>B" (primary > retake).
 // declared as functions so they're hoisted (applyGradeClass runs during initial render).
@@ -829,9 +1117,9 @@ function setGrade(key,g){
 // per-semester GPA data, shared by the on-screen panel and the PDF document
 function gpaData(){
   const rows=[]; let tNum=0,tDen=0,cred=0;
-  for(let c=0;c<DATA.sems.length;c++){
+  for(let c=0;c<PLAN.sems.length;c++){
     let num=0,den=0;
-    DATA.nodes.filter(n=>n.col===c).forEach(n=>{
+    PLAN.nodes.filter(n=>n.col===c).forEach(n=>{
       const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den; cred+=r.cred;
     });
     tNum+=num; tDen+=den;
@@ -839,15 +1127,26 @@ function gpaData(){
   }
   return {rows, total:tDen?(tNum/tDen).toFixed(2):'—', tDen, cred};
 }
+// Major GPA over the CE-department subjects only (isMajorGpa: cat 'major' + major
+// electives + the CE labs; 67 cr in the regular track). Same nodeGpa() helper as
+// gpaData(), so retake chains ("F>B"), S/CS credit-no-GPA and W/U/I/P behave identically.
+function majorGpa(){
+  let num=0,den=0,cred=0;
+  PLAN.nodes.filter(isMajorGpa).forEach(n=>{
+    const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den; cred+=r.cred;
+  });
+  return {gpa: den?(num/den).toFixed(2):'—', den, cred};
+}
 const summary=document.getElementById('summary');
 document.getElementById('sumBtn').addEventListener('click',()=>{ summary.classList.toggle('open'); });
 document.getElementById('sumClose').addEventListener('click',()=>summary.classList.remove('open'));
 function computeSummary(){
-  const d=gpaData();
+  const d=gpaData(), m=majorGpa();
   const rows=d.rows.map(r=>'<div class="srow"><span>'+r.label+'</span><b>'+r.gpa+'</b><i>'+r.den+' cr</i></div>').join('');
   document.getElementById('sumBody').innerHTML=
     '<div class="sbig">'+d.cred+'<small> / '+TOTAL_CR+' credits studied</small></div>'+rows+
-    '<div class="srow total"><span>Total GPA</span><b>'+d.total+'</b><i>'+d.tDen+' cr</i></div>';
+    '<div class="srow total"><span>Total GPA</span><b>'+d.total+'</b><i>'+d.tDen+' cr</i></div>'+
+    '<div class="srow total"><span>Major GPA</span><b>'+m.gpa+'</b><i>'+m.den+' cr</i></div>';
 }
 
 // ===========================================================================
@@ -897,9 +1196,9 @@ function gradePass(g, min){
 }
 // cumulative GPA up to and including column maxCol (null = every semester)
 function gpaThrough(maxCol){
-  const last = (maxCol==null) ? DATA.sems.length-1 : Math.min(maxCol, DATA.sems.length-1);
+  const last = (maxCol==null) ? PLAN.sems.length-1 : Math.min(maxCol, PLAN.sems.length-1);
   let num=0, den=0;
-  for(let c=0;c<=last;c++) DATA.nodes.filter(n=>n.col===c).forEach(n=>{
+  for(let c=0;c<=last;c++) PLAN.nodes.filter(n=>n.col===c).forEach(n=>{
     const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den;
   });
   return {gpa: den?(num/den).toFixed(2):'—', den};
@@ -954,6 +1253,474 @@ document.getElementById('trackBtn').addEventListener('click',()=>{
   buildDoc('tracks'); docview.classList.add('open');
 });
 
+// ===========================================================================
+// ==== TASK 2: TRACK SWAP ====
+// Regular <-> Co-op curriculum switch (curriculum delta: TRACK_PLANS, near
+// planNodes() above). Selecting co-op runs the existing eligibility check
+// (evalTrack, above) but never blocks the switch -- it only informs the
+// student, who can always confirm and switch anyway.
+// ===========================================================================
+// shared with the printed Tracks report (trackBlock, above) so the dialog and the
+// PDF report can never drift apart -- one source of truth for the failure wording.
+function trackWhy(v){
+  const t=v.track, why=[];
+  if(!v.gpaOk) why.push(v.gpaDen? ('GPA '+v.gpa+' is not above '+t.gpaMin.toFixed(2)) : 'no grades recorded yet');
+  if(v.passed<v.total) why.push((v.total-v.passed)+' subject'+((v.total-v.passed)>1?'s':'')+' not yet passed at '+
+    (t.reqs.some(r=>r.min==='C')?'the required grade':'grade A–D'));
+  return why;
+}
+function trackDialogBody(v){
+  const t=v.track;
+  const changes='<ul class="tdlg-changes">'+
+    '<li>Summer <b>CE400</b> training is dropped &mdash; no summer internship on co-op.</li>'+
+    '<li>Year 4 / Semester 1 becomes <b>CE401</b> Cooperative Education (6 credits) &mdash; the only course that semester.</li>'+
+    '<li><b>CE413</b>, <b>CE451</b> and a free elective move to Year 4 / Semester 2; co-op carries one fewer major elective.</li></ul>';
+  if(v.eligible){
+    return '<div class="tdlg-tag ok">Eligible</div><h3>Switch to the Co-op track?</h3>'+
+      '<p>You meet the co-op conditions: cumulative GPA &gt; 2.00, grade A&ndash;C in CE212, CE363, CE313, CE333, CE374, CE343, '+
+      'and grade A&ndash;D in MATH162.</p>'+changes;
+  }
+  const rows=v.rows.filter(r=>!r.ok).map(r=>
+    '<tr><td>'+r.code+'</td><td>'+esc(r.title)+'</td><td class="c">'+r.need+'</td><td class="c">'+esc(r.got)+'</td></tr>').join('');
+  const gpaLine='<div class="srow2"><span>'+t.gpaLabel+' &mdash; minimum '+t.gpaMin.toFixed(2)+'</span>'+
+    '<b>'+v.gpa+' '+(v.gpaOk?'<span class="ok">✓</span>':'<span class="bad">✗</span>')+'</b></div>';
+  return '<div class="tdlg-tag bad">Not yet eligible</div><h3>Switch to the Co-op track?</h3>'+
+    (rows?'<table class="docsem"><caption>Conditions not met</caption>'+
+      '<thead><tr><th>Code</th><th>Course</th><th class="c">Need</th><th class="c">Your grade</th></tr></thead>'+
+      '<tbody>'+rows+'</tbody></table>':'')+
+    gpaLine+
+    '<div class="advisor-warn"><b>⚠ Contact your Academic Advisor</b>'+
+      '<div>Not eligible: '+esc(trackWhy(v).join('; '))+'.</div></div>'+
+    '<p>You can switch anyway &mdash; the map changes to the co-op curriculum immediately, but confirm this with your advisor first.</p>';
+}
+const trackDlg=document.getElementById('trackDlg');
+function closeTrackDialog(){ trackDlg.classList.remove('open'); trackDlg.innerHTML=''; planSel.value=track; }
+function openTrackDialog(v, onConfirm){
+  trackDlg.innerHTML='<div class="tdlg-card">'+trackDialogBody(v)+
+    '<div class="tdlg-btns"><button class="btn" id="tdlgCancel">Cancel</button>'+
+    '<button class="btn on" id="tdlgOk">'+(v.eligible?'Switch':'Switch anyway')+'</button></div></div>';
+  trackDlg.classList.add('open');
+  document.getElementById('tdlgOk').addEventListener('click',()=>{ trackDlg.classList.remove('open'); trackDlg.innerHTML=''; onConfirm(); });
+  document.getElementById('tdlgCancel').addEventListener('click',closeTrackDialog);
+}
+trackDlg.addEventListener('click',e=>{ if(e.target===trackDlg) closeTrackDialog(); });   // tap backdrop = cancel (touch-friendly)
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && trackDlg.classList.contains('open')) closeTrackDialog(); });
+
+function updateTrackUI(){
+  planSel.value=track;
+  const bt=document.getElementById('brandTrack'); if(bt) bt.textContent=(track==='coop'?'Co-op':'Regular');
+}
+// a track swap changes which courses exist, so the map must be RE-LAID-OUT (relayout=true),
+// not stably re-seeded like task 3's drag-to-move.
+function applyTrack(newTrack){
+  track=newTrack; syncTrack(); updateTrackUI(); rebuildMap(true);   // rebuildMap re-derives PLAN
+}
+const planSel=document.getElementById('planSel');
+planSel.addEventListener('change',()=>{
+  const val=planSel.value;
+  if(val===track) return;
+  if(val==='regular'){ applyTrack('regular'); return; }   // no eligibility gate switching back
+  openTrackDialog(evalTrack('coop'), ()=>applyTrack('coop'));   // notify, never block
+});
+updateTrackUI();   // reflect the initial `track` value in the header before login
+
+// ===========================================================================
+// ==== TASK 3A: MOVE ====
+// A student who withdraws a course and re-takes it later moves the box to the
+// semester they ACTUALLY studied it in. `moves` (declared with the plan state near
+// planNodes) is the entire model: planNodes() applies it last, so the per-semester
+// GPA follows the real placement by itself -- nothing in here scores anything.
+// Two input paths, both shipped: tap the grip -> a "Move to…" list (every device,
+// keyboard-reachable, and the only sane way to go Y1 -> Y4 at 100% zoom), and a
+// pointer drag. A drop is NEVER blocked: violations only surface in #mvToast.
+// ===========================================================================
+let editMode=false;
+const editBtn=document.getElementById('editBtn'), mvDlg=document.getElementById('mvDlg'), mvToast=document.getElementById('mvToast');
+function setEditMode(on){
+  editMode=!!on;
+  editBtn.classList.toggle('on',editMode);
+  map.classList.toggle('editmode',editMode);          // CSS reveals every grip at once
+  document.body.classList.toggle('editing',editMode); // ...and the "reset" button
+  if(!editMode) closeMoveMenu();
+}
+editBtn.addEventListener('click',()=>setEditMode(!editMode));
+
+// a stored/typed column is usable only as an integer inside the published semester range
+function mvValidCol(v){
+  const t=String(v==null?'':v).trim();
+  if(!/^\d+$/.test(t)) return null;
+  const c=parseInt(t,10);
+  return (c>=0 && c<DATA.sems.length) ? c : null;
+}
+// where the CURRENT track's plan puts this course, ignoring the student's own move
+function planCol(key){
+  const tp=(track==='coop')?TRACK_PLANS.coop:null;
+  if(tp){
+    if(tp.move[key]!=null) return tp.move[key];
+    const a=(tp.add||[]).find(n=>n.key===key); if(a) return a.col;
+  }
+  const d=DATA.nodes.find(n=>n.key===key);
+  return d ? d.col : (byKey[key]?byKey[key].col:0);
+}
+
+// ---- non-blocking warnings (read off the FRESH plan, after the rebuild) ----
+function edgeCo(sKey,tKey){ const e=DATA.edges.find(x=>x.s===sKey&&x.t===tKey); return !!(e&&e.co); }
+function moveWarnings(key){
+  const n=byKey[key]; if(!n) return [];
+  const col=n.col, lab=i=>esc(PLAN.sems[i].label), w=[];
+  (prereqsOf[key]||[]).forEach(pk=>{
+    const q=byKey[pk]; if(!q) return;
+    // a CO-requisite may legitimately share a column; a hard prerequisite must finish strictly earlier
+    if(edgeCo(pk,key) ? q.col>col : q.col>=col)
+      w.push('Prerequisite <b>'+esc(q.short)+'</b> sits in '+lab(q.col)+', not before '+lab(col)+'.');
+  });
+  (unlocksOf[key]||[]).forEach(dk=>{
+    const q=byKey[dk]; if(!q) return;
+    if(edgeCo(key,dk) ? q.col<col : q.col<=col)
+      w.push('<b>'+esc(q.short)+'</b> needs this course first but sits in '+lab(q.col)+'.');
+  });
+  const cr=PLAN.sems[col].cr, summer=/summer/i.test(PLAN.sems[col].label);
+  if(cr>(summer?3:22))
+    w.push(lab(col)+' now carries <b>'+cr+' credits</b> &mdash; '+(summer?'Summer normally carries 3.':'the plan runs 20&ndash;22 per semester.'));
+  return w;
+}
+// own toast: #banner belongs to the sync/offline errors and a move must never stomp one
+let _mvToastT=null;
+function hideMoveToast(){ clearTimeout(_mvToastT); mvToast.classList.remove('show'); mvToast.innerHTML=''; }
+function showMoveToast(head,list){
+  clearTimeout(_mvToastT);
+  mvToast.innerHTML='<span class="mvx" id="mvToastX">&#10005;</span><b>'+head+'</b>'+
+    (list.length?'<ul><li>'+list.join('</li><li>')+'</li></ul>':'');
+  mvToast.classList.add('show');
+  document.getElementById('mvToastX').addEventListener('click',hideMoveToast);
+  _mvToastT=setTimeout(hideMoveToast, list.length?9000:3200);
+}
+
+// the ONE write path. rebuildMap(FALSE): each column is re-seeded from the previous
+// rowOf and the barycenter sweeps are skipped, so only this box travels instead of the
+// whole map re-shuffling under the student.
+function commitMove(key,col){
+  const before=byKey[key]?byKey[key].col:null;
+  const to=(col==null)?null:mvValidCol(col);
+  if(to==null || to===planCol(key)) delete moves[key];   // dropping it back on the plan IS a reset
+  else moves[key]=to;
+  syncExtra(key);        // writes the cache AND the extras row (moved_col); "" when cleared
+  rebuildMap(false);     // re-derives PLAN from `moves`
+  const n=byKey[key]; if(!n || n.col===before) return;    // nothing actually moved: stay quiet
+  const w=moveWarnings(key);
+  showMoveToast(esc(n.short)+' &rarr; '+esc(PLAN.sems[n.col].label)+(w.length?' &middot; check:':' &middot; moved.'), w);
+}
+
+// ---- tap path: "Move to…" (ships first; works with no pointer at all) ----
+function closeMoveMenu(){ mvDlg.classList.remove('open'); mvDlg.innerHTML=''; }
+function openMoveMenu(key){
+  const n=byKey[key]; if(!n) return;
+  const home=planCol(key);
+  const rows=PLAN.sems.map((sm,i)=>{
+    const tags=[]; if(i===n.col) tags.push('current'); if(i===home) tags.push('on plan');
+    return '<button class="mvrow'+(i===n.col?' cur':'')+'" data-col="'+i+'">'+
+      '<b>'+esc(sm.label)+'</b><span>'+sm.cr+' cr</span><i>'+tags.join(' &middot; ')+'</i></button>';
+  }).join('');
+  mvDlg.innerHTML='<div class="tdlg-card"><h3>Move '+esc(n.short)+'</h3>'+
+    '<p>Pick the semester you actually study it in. Nothing is blocked &mdash; anything unusual is only flagged afterwards.</p>'+
+    '<div class="mvlist">'+rows+'</div>'+
+    '<div class="tdlg-btns">'+(moves[key]!=null?'<button class="btn" id="mvReset">&#8635; Reset to plan</button>':'')+
+    '<button class="btn" id="mvCancel">Cancel</button></div></div>';
+  mvDlg.classList.add('open');
+  mvDlg.querySelectorAll('.mvrow').forEach(b=>b.addEventListener('click',()=>{
+    const c=+b.dataset.col; closeMoveMenu(); if(c!==n.col) commitMove(key,c);
+  }));
+  const rb=document.getElementById('mvReset');
+  if(rb) rb.addEventListener('click',()=>{ closeMoveMenu(); commitMove(key,null); });
+  document.getElementById('mvCancel').addEventListener('click',closeMoveMenu);
+  const f=mvDlg.querySelector('.mvrow.cur')||mvDlg.querySelector('.mvrow'); if(f) f.focus();
+}
+mvDlg.addEventListener('click',e=>{ if(e.target===mvDlg) closeMoveMenu(); });   // tap backdrop = cancel
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && mvDlg.classList.contains('open')) closeMoveMenu(); });
+
+// ---- reset every move (full relayout: this is a wholesale plan change, like a track swap) ----
+const mvResetAll=document.getElementById('mvResetAll');
+mvResetAll.addEventListener('click',()=>{
+  const keys=Object.keys(moves);
+  if(!keys.length){ showMoveToast('No moved courses.',[]); return; }
+  mvDlg.innerHTML='<div class="tdlg-card"><h3>Reset every move?</h3>'+
+    '<p>'+keys.length+' course'+(keys.length>1?'s go':' goes')+' back to the published plan. Grades, stars and notes are untouched.</p>'+
+    '<div class="tdlg-btns"><button class="btn" id="mvraCancel">Cancel</button>'+
+    '<button class="btn on" id="mvraOk">Reset all</button></div></div>';
+  mvDlg.classList.add('open');
+  document.getElementById('mvraCancel').addEventListener('click',closeMoveMenu);
+  document.getElementById('mvraOk').addEventListener('click',()=>{
+    closeMoveMenu();
+    keys.forEach(k=>{ delete moves[k]; syncExtra(k); });   // clearing MUST write "", not leave a stale value
+    rebuildMap(true);
+    showMoveToast(keys.length+' course'+(keys.length>1?'s':'')+' back on the plan.',[]);
+  });
+});
+
+// ---- drag path (Pointer Events) ----
+// pointermove/up are attached to WINDOW, not the box: a fast pointer leaves the 15px grip
+// long before pointerup and the drag would die mid-gesture on the node.
+let mvDrag=null, _mvScrollT=null, _mvScrollD=0;
+function mvColFromClientX(cx){
+  // #map carries CSS `zoom`. getBoundingClientRect() already returns ZOOMED geometry (and
+  // already accounts for the native overflow scroll on #scroll), so dividing by z is all
+  // that is needed to get back to map coordinates. Only the destination COLUMN matters.
+  const r=map.getBoundingClientRect();
+  return Math.max(0,Math.min(NCOL-1,Math.round(((cx-r.left)/z-PAD)/COL_W)));
+}
+function mvMarkTarget(col){
+  const hs=colsBar.querySelectorAll('.colhdr');
+  for(let i=0;i<hs.length;i++) hs[i].classList.toggle('mvtarget', i===col);
+}
+function mvStopAutoScroll(){ if(_mvScrollT){ clearInterval(_mvScrollT); _mvScrollT=null; } _mvScrollD=0; }
+function mvAutoScroll(cx){
+  const r=scroll.getBoundingClientRect(), EDGE=64;
+  const d = cx<r.left+EDGE ? -14 : (cx>r.right-EDGE ? 14 : 0);
+  if(d===_mvScrollD) return;
+  mvStopAutoScroll(); if(!d) return;
+  _mvScrollD=d;
+  _mvScrollT=setInterval(()=>{
+    if(!mvDrag){ mvStopAutoScroll(); return; }
+    scroll.scrollLeft+=d;
+    mvDrag.col=mvColFromClientX(mvDrag.lastX); mvMarkTarget(mvDrag.col);
+  },16);
+}
+function mvPointerDown(e,key){
+  if(!editMode || mvDrag || !byKey[key]) return;
+  if(e.button!=null && e.button>0) return;            // right / middle button
+  e.preventDefault(); e.stopPropagation();
+  const el=nodeEl[key]; if(!el) return;
+  mvDrag={key, el, id:e.pointerId, x0:e.clientX, y0:e.clientY, lastX:e.clientX, col:byKey[key].col, moved:false};
+  try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){}
+  window.addEventListener('pointermove',mvPointerMove);
+  window.addEventListener('pointerup',mvPointerUp);
+  window.addEventListener('pointercancel',mvPointerUp);
+}
+function mvPointerMove(e){
+  if(!mvDrag || e.pointerId!==mvDrag.id) return;
+  const dx=e.clientX-mvDrag.x0, dy=e.clientY-mvDrag.y0;
+  if(!mvDrag.moved && Math.hypot(dx,dy)<6) return;    // still inside the tap threshold
+  if(!mvDrag.moved){ mvDrag.moved=true; mvDrag.el.classList.add('mvdrag'); }
+  mvDrag.lastX=e.clientX;
+  mvDrag.el.style.transform='translate('+(dx/z)+'px,'+(dy/z)+'px)';   // box lives inside the zoomed #map
+  mvDrag.col=mvColFromClientX(e.clientX);
+  mvMarkTarget(mvDrag.col);
+  mvAutoScroll(e.clientX);
+}
+function mvPointerUp(e){
+  if(!mvDrag || (e.pointerId!=null && e.pointerId!==mvDrag.id)) return;
+  const d=mvDrag; mvDrag=null;
+  window.removeEventListener('pointermove',mvPointerMove);
+  window.removeEventListener('pointerup',mvPointerUp);
+  window.removeEventListener('pointercancel',mvPointerUp);
+  mvStopAutoScroll(); mvMarkTarget(-1);
+  d.el.classList.remove('mvdrag'); d.el.style.transform='';
+  if(!d.moved){ openMoveMenu(d.key); return; }        // it was a tap, not a drag
+  if(e.type!=='pointercancel') commitMove(d.key,d.col);
+}
+
+// ===========================================================================
+// ==== TASK 3B: ADD COURSE ====
+// A student can add a course the published plan doesn't list: a genuine free/GE
+// elective beyond what's printed, a repeated subject, or something wholly off-plan.
+// `customs` (declared with the plan state near planNodes, empty until now) is the
+// entire model: planNodes() appends it before `moves` applies (see there), so a
+// custom course scores, prints, moves and re-tracks exactly like a curriculum one.
+// Two entry points off one "+ add" control (edit mode only, next to Task 3A's grip
+// controls): a one-click elective slot, and a full form for everything else. The
+// same dialog also lists the student's own added courses -- that list IS the
+// removal UI, so nothing here needs to touch createNodeEl/openMoveMenu/openPanel.
+// ===========================================================================
+const addBtn=document.getElementById('addBtn'), addDlg=document.getElementById('addDlg');
+// same fallback used at both DATA.cats[...] deref sites above (createNodeEl, paintNodeStatic,
+// openPanel): a malformed stored/custom category (bad Sheet row, corrupted cache) renders as
+// this instead of throwing.
+const FALLBACK_CAT={fill:'#EEEEEE', stroke:'#999999', label:'Unknown category'};
+
+// ---- key generation: must survive reload/re-login (round-trips through the Sheet's `custom`
+// tab as course_key, and becomes a real column header via setGrade -- data.js/getSheet -- so it
+// must also satisfy the backend's ^[A-Z][A-Z0-9_]{1,23}$) and can never collide with a
+// curriculum key, a track-added key (CE401) or another custom key. ----
+function customKeyTaken(k){
+  if(DATA.nodes.some(n=>n.key===k)) return true;
+  if(customs[k]) return true;
+  for(const t in TRACK_PLANS) if((TRACK_PLANS[t].add||[]).some(n=>n.key===k)) return true;
+  return false;
+}
+function genCustomKey(){
+  const CH='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  for(let tries=0; tries<64; tries++){
+    let s='C'; for(let j=0;j<8;j++) s+=CH[Math.floor(Math.random()*CH.length)];   // C + 8 -> ^[A-Z][A-Z0-9_]{1,23}$
+    if(!customKeyTaken(s)) return s;
+  }
+  return 'C'+Date.now().toString(36).toUpperCase().replace(/[^A-Z0-9]/g,'0').slice(-8);   // pathological fallback
+}
+
+// ---- validate one custom-course row on the way IN (login payload or offline cache): never
+// trust stored data -- a malformed row is skipped outright, not patched into a broken box. ----
+function validCustomRow(r){
+  if(!r) return null;
+  const key=String(r.course_key||r.key||'').trim().toUpperCase();
+  if(!/^[A-Z][A-Z0-9_]{1,23}$/.test(key)) return null;
+  if(DATA.nodes.some(n=>n.key===key)) return null;               // never shadow a curriculum key
+  const code=String((r.code==null?r.short:r.code)||'').trim();
+  const name=String(r.name==null?'':r.name).trim();
+  if(!code || !name) return null;
+  const cr=parseFloat(r.cr);
+  if(!isFinite(cr) || cr<=0 || cr>12) return null;
+  const cat=String(r.cat||'').trim();
+  if(!DATA.cats[cat]) return null;
+  const col=mvValidCol(r.col);
+  if(col==null) return null;
+  // Whether this course counts toward the Major GPA. The student may override the default their
+  // category implies, so the choice is stored, not re-derived: the offline cache round-trips a real
+  // boolean and the backend `custom` tab carries it as major_gpa "TRUE"/"FALSE". Only a row with
+  // neither (a pre-major_gpa row written by an older build) falls back to the category default.
+  let majorGpa;
+  if(r.majorGpa===true || r.majorGpa===false)      majorGpa = r.majorGpa;
+  else if(r.major_gpa==="TRUE"  || r.major_gpa===true)  majorGpa = true;
+  else if(r.major_gpa==="FALSE" || r.major_gpa===false) majorGpa = false;
+  else                                             majorGpa = (cat==='major');
+  return { key, short:code, name, cr, cat, col, majorGpa, desc:'Student-added course (not part of the published plan).' };
+}
+
+// ---- persist: mirrors syncGrade/syncExtra/syncTrack exactly, including the OFFLINE
+// early-return and the writeCache()-always-runs-first ordering. ----
+const _cTimers={};
+function syncCustom(key){          // course definition -> the `custom` tab
+  if(!key) return; writeCache();
+  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  const n=customs[key]; if(!n) return;
+  clearTimeout(_cTimers[key]);
+  _cTimers[key]=setTimeout(()=>{
+    API.setCustom(CURRENT.student_id, key, {code:n.short, name:n.name, cr:n.cr, cat:n.cat, col:n.col,
+                                             major_gpa:n.majorGpa===true})
+      .catch(err=>{ console.warn("setCustom failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+  },400);
+}
+function syncDelCustom(key){       // remove the `custom` tab row
+  if(!key) return; writeCache();
+  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  clearTimeout(_cTimers[key]);
+  API.delCustom(CURRENT.student_id, key)
+    .catch(err=>{ console.warn("delCustom failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+}
+
+// ---- create / remove ----
+function createCustomElective(col){
+  const key=genCustomKey();
+  customs[key]={ key, col, short:'Free Elec', name:'Additional Elective', cr:3, cat:'elec',
+    majorGpa:false, desc:'Student-added elective slot (not part of the published plan).' };
+  syncCustom(key);
+  rebuildMap(true);
+  showMoveToast('Elective slot added &rarr; '+esc(PLAN.sems[col]?PLAN.sems[col].label:'?')+'.', []);
+}
+function addCustomCourse(f){
+  const key=genCustomKey();
+  customs[key]={ key, col:f.col, short:f.code, name:f.name, cr:f.cr, cat:f.cat,
+    majorGpa:f.majorGpa, desc:'Student-added course (not part of the published plan).' };
+  syncCustom(key);
+  rebuildMap(true);
+  showMoveToast(esc(f.code)+' added &rarr; '+esc(PLAN.sems[f.col]?PLAN.sems[f.col].label:'?')+'.', []);
+}
+// removable: clears the box, its grade, its extras row (star/note/elec/moved_col) and the
+// backend `custom` row. Grade/extra captured & synced BEFORE the delete so homeCol()/semOf()
+// still resolve via byKey (unchanged until the rebuild below) -- see handoff notes on homeCol().
+function removeCustomCourse(key){
+  const n=customs[key]; if(!n) return;
+  delete grades[key]; delete stars[key]; delete notes[key]; delete elec[key]; delete moves[key];
+  syncGrade(key); syncExtra(key);
+  delete customs[key];
+  syncDelCustom(key);
+  rebuildMap(true);
+  showMoveToast('Removed '+esc(n.short)+'.', []);
+}
+
+// ---- dialog: choice + the student's own added courses (that list IS the removal UI) ----
+function closeAddDlg(){ addDlg.classList.remove('open'); addDlg.innerHTML=''; }
+function openAddChoice(){
+  const mine=Object.keys(customs).map(k=>customs[k]).filter(Boolean);
+  const listHtml = mine.length ? '<div class="sect" style="margin-top:14px">Your added courses</div><div class="addlist">'+
+    mine.map(n=>{ const col=(byKey[n.key]||n).col;
+      return '<div class="addrow"><span>'+esc(n.short)+' <i>&mdash; '+esc(PLAN.sems[col]?PLAN.sems[col].label:'?')+'</i></span>'+
+        '<button class="btn addrm" data-key="'+esc(n.key)+'" title="Remove this course">&#10005; remove</button></div>'; }).join('')+
+    '</div>' : '';
+  addDlg.innerHTML='<div class="tdlg-card"><h3>Add a course</h3>'+
+    '<p>A free elective the plan doesn&rsquo;t list, or a genuinely off-plan / repeated subject.</p>'+
+    '<div class="addchoice">'+
+      '<button class="btn" id="addElecBtn">+ Quick elective slot</button>'+
+      '<button class="btn" id="addCustomBtn">+ Full custom course&hellip;</button>'+
+    '</div>'+listHtml+
+    '<div class="tdlg-btns"><button class="btn" id="addCloseBtn">Close</button></div></div>';
+  addDlg.classList.add('open');
+  document.getElementById('addElecBtn').addEventListener('click',openAddElectivePicker);
+  document.getElementById('addCustomBtn').addEventListener('click',openAddCustomForm);
+  document.getElementById('addCloseBtn').addEventListener('click',closeAddDlg);
+  addDlg.querySelectorAll('.addrm').forEach(b=>b.addEventListener('click',()=>{
+    removeCustomCourse(b.dataset.key); openAddChoice();   // refresh the list in place
+  }));
+}
+// ---- step: quick elective slot -- one click to pick the semester, then it's created ----
+function openAddElectivePicker(){
+  const rows=PLAN.sems.map((sm,i)=>'<button class="mvrow" data-col="'+i+'"><b>'+esc(sm.label)+'</b><span>'+sm.cr+' cr</span></button>').join('');
+  addDlg.innerHTML='<div class="tdlg-card"><h3>Add elective slot</h3>'+
+    '<p>Pick the semester. Edit the course code and its actual name on the box afterwards.</p>'+
+    '<div class="mvlist">'+rows+'</div>'+
+    '<div class="tdlg-btns"><button class="btn" id="addBackBtn">&larr; Back</button>'+
+    '<button class="btn" id="addCancelBtn">Cancel</button></div></div>';
+  addDlg.classList.add('open');
+  addDlg.querySelectorAll('.mvrow').forEach(b=>b.addEventListener('click',()=>{
+    const col=+b.dataset.col; closeAddDlg(); createCustomElective(col);
+  }));
+  document.getElementById('addBackBtn').addEventListener('click',openAddChoice);
+  document.getElementById('addCancelBtn').addEventListener('click',closeAddDlg);
+}
+// ---- step: full custom-course form ----
+function openAddCustomForm(){
+  const catOpts=Object.keys(DATA.cats).map(k=>'<option value="'+k+'"'+(k==='custom'?' selected':'')+'>'+esc(DATA.cats[k].label)+'</option>').join('');
+  const semOpts=PLAN.sems.map((sm,i)=>'<option value="'+i+'">'+esc(sm.label)+' ('+sm.cr+' cr)</option>').join('');
+  addDlg.innerHTML='<div class="tdlg-card"><h3>Add custom course</h3>'+
+    '<p>For a genuinely off-plan or repeated subject. It counts toward credits studied, its semester GPA, the cumulative GPA and (if flagged) the Major GPA, like any other course.</p>'+
+    '<div class="addform">'+
+      '<label for="acCode">Course code</label><input id="acCode" maxlength="20" placeholder="e.g. CE499">'+
+      '<label for="acName">Course name</label><input id="acName" maxlength="80" placeholder="actual course name">'+
+      '<label for="acCr">Credits</label><input id="acCr" type="number" min="1" max="12" step="1" value="3">'+
+      '<label for="acCat">Category</label><select id="acCat">'+catOpts+'</select>'+
+      '<label class="addchk"><input type="checkbox" id="acMajor"> Counts toward Major GPA</label>'+
+      '<label for="acCol">Semester</label><select id="acCol">'+semOpts+'</select>'+
+    '</div>'+
+    '<div class="adderr" id="acErr"></div>'+
+    '<div class="tdlg-btns"><button class="btn" id="addBackBtn2">&larr; Back</button>'+
+    '<button class="btn" id="acCancel">Cancel</button><button class="btn on" id="acSubmit">Add course</button></div></div>';
+  addDlg.classList.add('open');
+  const catSel=document.getElementById('acCat'), majChk=document.getElementById('acMajor');
+  catSel.addEventListener('change',()=>{ majChk.checked = (catSel.value==='major'); });
+  document.getElementById('addBackBtn2').addEventListener('click',openAddChoice);
+  document.getElementById('acCancel').addEventListener('click',closeAddDlg);
+  document.getElementById('acSubmit').addEventListener('click',submitAddCustom);
+  const f=document.getElementById('acCode'); if(f) f.focus();
+}
+function submitAddCustom(){
+  const errEl=document.getElementById('acErr'), errs=[];
+  const code=document.getElementById('acCode').value.trim();
+  const name=document.getElementById('acName').value.trim();
+  const cr=parseFloat(document.getElementById('acCr').value);
+  const cat=document.getElementById('acCat').value;
+  const col=parseInt(document.getElementById('acCol').value,10);
+  const majorGpa=!!document.getElementById('acMajor').checked;
+  if(!code) errs.push('Enter a course code.');
+  if(!name) errs.push('Enter a course name.');
+  if(!isFinite(cr) || cr<=0 || cr>12) errs.push('Credits must be a number greater than 0 (up to 12).');
+  if(!DATA.cats[cat]) errs.push('Pick a category.');
+  if(!(col>=0 && col<PLAN.sems.length)) errs.push('Pick a semester.');
+  if(errs.length){ errEl.innerHTML=errs.join('<br>'); return; }
+  closeAddDlg();
+  addCustomCourse({code,name,cr,cat,col,majorGpa});
+}
+addBtn.addEventListener('click',()=>{ if(editMode) openAddChoice(); });
+addDlg.addEventListener('click',e=>{ if(e.target===addDlg) closeAddDlg(); });   // tap backdrop = cancel
+document.addEventListener('keydown',e=>{ if(e.key==='Escape' && addDlg.classList.contains('open')) closeAddDlg(); });
+
 // ---- formal PDF document (course list + summary + advisor comment + signatures) ----
 const docview=document.getElementById('docview');
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -967,7 +1734,8 @@ const codeFor=n=>isElec(n)?elecCode(n):n.short;                       // registe
 const titleFor=n=>isElec(n)?(elecName(n)||n.name):n.name;            // actual name if student filled it
 function docHead(today){
   return '<div class="doc-head"><div class="doc-title">B.Eng. Civil Engineering (International Program)</div>'+
-    '<div class="doc-sub">Curriculum CIE 2568 &middot; '+TOTAL_CR+' Credits &middot; Academic Progress Report</div></div>'+
+    '<div class="doc-sub">Curriculum CIE 2568 &middot; '+(track==='coop'?'Co-op Track':'Regular Track')+
+    ' &middot; '+TOTAL_CR+' Credits &middot; Academic Progress Report</div></div>'+
     '<div class="doc-meta"><div><label>Student Name:</label><input id="docName" value="'+esc(stu.name)+'"></div>'+
     '<div><label>Student ID:</label><input id="docID" value="'+esc(stu.id)+'"></div>'+
     '<div><label>Date:</label> '+today+'</div></div>';
@@ -978,27 +1746,29 @@ function sigRow(){
     '<div class="sigbox"><div class="sigline"></div><b>Academic Advisor</b><span>Signature / Date</span></div></div>';
 }
 // year-column helpers for the 1-page layout (Summer counts as Year 3)
-function yearOfCol(c){ const l=DATA.sems[c].label; const m=l.match(/Y(\d)/i); return m?+m[1]:(/summer/i.test(l)?3:0); }
+function yearOfCol(c){ const l=PLAN.sems[c].label; const m=l.match(/Y(\d)/i); return m?+m[1]:(/summer/i.test(l)?3:0); }
 function buildFull(today){
   const d=gpaData();
   let sems='';
-  for(let c=0;c<DATA.sems.length;c++){
-    const rowsHtml=DATA.nodes.filter(n=>n.col===c).map(n=>{
+  for(let c=0;c<PLAN.sems.length;c++){
+    const rowsHtml=PLAN.nodes.filter(n=>n.col===c).map(n=>{
       const g=grades[n.key]?String(grades[n.key]).replace(/>/g,' → '):'-';
       const codeCell=(stars[n.key]?'★ ':'')+esc(codeFor(n));
       return '<tr><td>'+codeCell+'</td><td>'+esc(titleFor(n))+'</td><td class="c">'+n.cr+'</td><td class="c">'+g+'</td></tr>';
     }).join('');
     const r=d.rows[c];
-    sems+='<table class="docsem"><caption>'+r.label+' &mdash; '+DATA.sems[c].cr+' Credit</caption>'+
+    sems+='<table class="docsem"><caption>'+r.label+' &mdash; '+PLAN.sems[c].cr+' Credit</caption>'+
       '<thead><tr><th>Code</th><th>Course Title</th><th class="c">Credit</th><th class="c">Grade</th></tr></thead>'+
       '<tbody>'+rowsHtml+'</tbody>'+
       '<tfoot><tr><td colspan="2" class="r">Semester GPA</td><td class="c">'+r.den+'</td><td class="c">'+r.gpa+'</td></tr></tfoot>'+
       '</table>';
   }
+  const m=majorGpa();
   return docHead(today)+sems+
     '<div class="docsummary"><h3>Summary</h3>'+
       '<div class="srow2 big"><span>Total credits studied (passing grade A&ndash;D, S, CS)</span><b>'+d.cred+' / '+TOTAL_CR+'</b></div>'+
-      '<div class="srow2 big"><span>Cumulative GPA</span><b>'+d.total+'</b></div></div>'+
+      '<div class="srow2 big"><span>Cumulative GPA</span><b>'+d.total+'</b></div>'+
+      '<div class="srow2 big"><span>Major GPA (civil engineering subjects)</span><b>'+m.gpa+'</b></div></div>'+
     '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
       '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
     sigRow();
@@ -1007,11 +1777,11 @@ function buildCompact(today){
   const d=gpaData();
   let cols='';
   for(let y=1;y<=4;y++){
-    const yc=[]; for(let c=0;c<DATA.sems.length;c++) if(yearOfCol(c)===y) yc.push(c);
+    const yc=[]; for(let c=0;c<PLAN.sems.length;c++) if(yearOfCol(c)===y) yc.push(c);
     let num=0,den=0, body='';
     yc.forEach(c=>{
-      body+='<div class="cyhdr">'+DATA.sems[c].label+'</div>';
-      DATA.nodes.filter(n=>n.col===c).forEach(n=>{
+      body+='<div class="cyhdr">'+PLAN.sems[c].label+'</div>';
+      PLAN.nodes.filter(n=>n.col===c).forEach(n=>{
         const gv=grades[n.key], g=gv?String(gv).replace(/>/g,'→'):'-';
         const r=nodeGpa(gv, n.cr); num+=r.num; den+=r.den;
         body+='<div class="cyrow"><span>'+(stars[n.key]?'★ ':'')+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
@@ -1021,10 +1791,12 @@ function buildCompact(today){
     cols+='<div class="cyear"><div class="cytitle">Year '+y+'</div>'+body+
       '<div class="cygpa">Year GPA <b>'+ygpa+'</b></div></div>';
   }
+  const m=majorGpa();
   return docHead(today)+
     '<div class="compactgrid">'+cols+'</div>'+
     '<div class="docsummary compact"><span><b>Credits studied:</b> '+d.cred+' / '+TOTAL_CR+
-      ' &nbsp;&middot;&nbsp; <b>Cumulative GPA:</b> '+d.total+'</span></div>'+
+      ' &nbsp;&middot;&nbsp; <b>Cumulative GPA:</b> '+d.total+
+      ' &nbsp;&middot;&nbsp; <b>Major GPA:</b> '+m.gpa+'</span></div>'+
     '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
       '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
     sigRow();
@@ -1038,10 +1810,7 @@ function trackBlock(id){
     '<td class="c">'+(r.ok?'<span class="ok">✓</span>':'<span class="bad">✗</span>')+'</td></tr>').join('');
   const gpaRow='<div class="srow2"><span>'+t.gpaLabel+' &mdash; minimum '+t.gpaMin.toFixed(2)+'</span>'+
     '<b>'+v.gpa+' '+(v.gpaOk?'<span class="ok">✓</span>':'<span class="bad">✗</span>')+'</b></div>';
-  const why=[];
-  if(!v.gpaOk) why.push(v.gpaDen? ('GPA '+v.gpa+' is not above '+t.gpaMin.toFixed(2)) : 'no grades recorded yet');
-  if(v.passed<v.total) why.push((v.total-v.passed)+' subject'+((v.total-v.passed)>1?'s':'')+' not yet passed at '+
-    (t.reqs.some(r=>r.min==='C')?'the required grade':'grade A–D'));
+  const why=trackWhy(v);   // shared with the co-op switch dialog (TASK 2) -- one source of truth
   const warn = v.eligible ? '' :
     '<div class="advisor-warn"><b>⚠ Contact your Academic Advisor</b>'+
       '<div>Not eligible: '+esc(why.join('; '))+'.'+
@@ -1146,12 +1915,12 @@ function tapNode(key){
 }
 map.addEventListener('click',e=>{ if(!e.target.closest('.node')) deselect(); });   // tap empty space clears
 function openPanel(key){
-  curPanel=key; const n=byKey[key], c=DATA.cats[n.cat];
+  curPanel=key; const n=byKey[key], c=DATA.cats[n.cat]||FALLBACK_CAT;   // TASK 3B: defensive fallback
   document.querySelectorAll('.node.selected').forEach(e=>e.classList.remove('selected'));
-  nodeEl[key].classList.add('selected');
+  if(nodeEl[key]) nodeEl[key].classList.add('selected');
   $('ptag').textContent=c.label; $('pcode').textContent=n.short; $('pname').textContent=n.name;
   $('pmeta').innerHTML='<span class="chip" style="border-color:'+c.stroke+';background:'+c.fill+'">'+n.key+'</span>'+
-    '<span class="chip">'+n.cr+' credits</span><span class="chip">'+DATA.sems[n.col].label+'</span>';
+    '<span class="chip">'+n.cr+' credits</span><span class="chip">'+PLAN.sems[n.col].label+'</span>';
   $('pdesc').textContent=n.desc||"Description not available in source.";
   const pr=(prereqsOf[key]||[]).filter(k=>byKey[k]);
   $('pprereq').innerHTML=pr.length?pr.map(k=>'<a data-go="'+k+'">'+byKey[k].short+' <span>— '+byKey[k].name+'</span></a>').join(''):'<div class="none">No prerequisites — entry-level course.</div>';
@@ -1165,7 +1934,7 @@ $('pclose').addEventListener('click',()=>{ closePanelKeepGlow(); });   // close 
 let t=null;
 $('pnotes').addEventListener('input',()=>{
   if(!curPanel)return; notes[curPanel]=$('pnotes').value; saveNotes(); syncExtra(curPanel);
-  nodeEl[curPanel].classList.toggle('hasnote',!!$('pnotes').value.trim());
+  if(nodeEl[curPanel]) nodeEl[curPanel].classList.toggle('hasnote',!!$('pnotes').value.trim());
   $('psaved').textContent="saving…"; clearTimeout(t); t=setTimeout(()=>$('psaved').textContent="saved ✓",350);
 });
 $('pstar').addEventListener('click',()=>{ if(curPanel) toggleStar(curPanel); });
@@ -1175,6 +1944,13 @@ function syncPanelStar(){
   $('pstartxt').textContent=on?'Interested — starred':'Mark as interested';
 }
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') deselect(); });
+
+// ---- first render ----
+// Deliberately down here: rebuildMap() reads activeCats, search, counts, summary,
+// panel, $ and z, all of which are const/let declared above this line and in the
+// temporal dead zone before it. There is no separate first-run path - startup and
+// every later track swap / course move go through this one function.
+rebuildMap(true);
 
 // ---- measure header so column heads never overlap it ----
 function fitBar(){ document.documentElement.style.setProperty('--bar',(header.offsetHeight)+'px'); }
@@ -1191,7 +1967,20 @@ fitBar();
 // ===========================================================================
 let OFFLINE = false;            // true when running off the localStorage cache
 const HAS_API = () => !!(window.API && API.configured);
-const semOf = key => (DATA.sems[byKey[key].col].label || "").replace(/\s+/g,"");  // "Y1 S1" -> "Y1S1"
+// Which SHEET TAB a grade is written to. This is the course's HOME semester in the base
+// curriculum -- deliberately NOT its current column. A course that a track swap or a student
+// move has relocated keeps writing to the tab that owns its column, so one course's grade
+// lives in exactly one cell no matter how it is re-arranged on screen. (Display and the
+// per-semester GPA use the effective column from PLAN; only storage is pinned here.)
+const HOME_COL={};
+DATA.nodes.forEach(n=>HOME_COL[n.key]=n.col);
+Object.keys(TRACK_PLANS).forEach(t=>(TRACK_PLANS[t].add||[]).forEach(n=>{ if(HOME_COL[n.key]==null) HOME_COL[n.key]=n.col; }));
+function homeCol(key){
+  if(HOME_COL[key]!=null) return HOME_COL[key];
+  if(customs[key]&&customs[key].col!=null) return customs[key].col;   // student-added course
+  return byKey[key] ? byKey[key].col : 0;                             // last resort
+}
+const semOf = key => (DATA.sems[homeCol(key)].label || "").replace(/\s+/g,"");  // "Y1 S1" -> "Y1S1"
 
 function showBanner(msg){ const b=document.getElementById('banner'); if(!b)return;
   if(msg){ b.textContent=msg; b.classList.add('show'); } else { b.classList.remove('show'); } }
@@ -1211,7 +2000,10 @@ function syncExtra(key){          // star / note / elective overrides -> extras 
   if(!key) return; writeCache();
   if(!CURRENT || OFFLINE || !HAS_API()) return;
   const e=elec[key]||{};
-  const data={ starred: stars[key]?"TRUE":"FALSE", note: notes[key]||"", elec_code: e.code||"", elec_name: e.name||"" };
+  // TASK 3A: moved_col rides this same row. A CLEARED move must write "" (not be omitted),
+  // otherwise the backend keeps the stale column and the move comes back on next login.
+  const data={ starred: stars[key]?"TRUE":"FALSE", note: notes[key]||"", elec_code: e.code||"", elec_name: e.name||"",
+               moved_col: moves[key]==null ? "" : String(moves[key]) };
   clearTimeout(_eTimers[key]);
   _eTimers[key]=setTimeout(()=>{
     API.setExtra(CURRENT.student_id, key, data)
@@ -1229,22 +2021,40 @@ function syncStudent(){           // student name + advisor comment -> students 
       .catch(err=>console.warn("setProfile failed:",err));
   },500);
 }
+let _tTimer=null;
+function syncTrack(){             // TASK 2: active curriculum track -> students row
+  if(!CURRENT) return;
+  writeCache();
+  if(OFFLINE || !HAS_API()) return;
+  clearTimeout(_tTimer);
+  _tTimer=setTimeout(()=>{
+    API.setProfile(CURRENT.student_id, { track })
+      .catch(err=>console.warn("setProfile (track) failed:",err));
+  },500);
+}
 function syncCourse(key){ syncExtra(key); }   // back-compat alias
 
-// push loaded state into the already-rendered DOM
-function rehydrate(){
-  DATA.nodes.forEach(n=>{
+// push loaded state into the rendered boxes. Called by rehydrate() after login AND by
+// rebuildMap(); the #whoami block below stays out of it so a rebuild can't attach a
+// second sign-out listener.
+function repaintNodes(){
+  PLAN.nodes.forEach(n=>{
     const el=nodeEl[n.key]; if(!el) return;
     paintNode(n.key);   // restores grade + retake selects from compound grade string
     el.classList.toggle('starred', !!stars[n.key]);
     el.classList.toggle('hasnote', !!(notes[n.key]&&notes[n.key].trim()));
+    el.classList.toggle('moved', moves[n.key]!=null);   // TASK 3A: dashed border = off the published plan
     if(isElec(n)){
       const ec=el.querySelector('.ecode'), en=el.querySelector('.ename');
-      if(ec) ec.value=elecCode(n);
-      if(en) en.value=elecName(n);
+      // never overwrite the field the student is typing into (400ms sync debounce)
+      if(ec && ec!==document.activeElement) ec.value=elecCode(n);
+      if(en && en!==document.activeElement) en.value=elecName(n);
     }
   });
   updateCounts(); computeSummary();
+}
+function rehydrate(){
+  repaintNodes();
   const w=document.getElementById('whoami');
   if(w&&CURRENT){
     w.innerHTML='<b>'+esc(stu.name||CURRENT.student_id)+'</b> · <a id="signout">sign out</a>';
@@ -1255,7 +2065,7 @@ function rehydrate(){
 
 // hydrate in-memory state from a login/register payload {profile, grades, extras}
 function applyPayload(p){
-  [grades,stars,notes,elec].forEach(o=>{ for(const k in o) delete o[k]; });
+  [grades,stars,notes,elec,moves,customs].forEach(o=>{ for(const k in o) delete o[k]; });
   OFFLINE=false; showBanner("");
   if(p && p.grades) Object.keys(p.grades).forEach(k=>{ if(p.grades[k]!=="") grades[k]=String(p.grades[k]); });
   if(p && p.extras) p.extras.forEach(r=>{
@@ -1263,12 +2073,20 @@ function applyPayload(p){
     if(String(r.starred).toUpperCase()==="TRUE") stars[k]=1;
     if(r.note) notes[k]=String(r.note);
     if(r.elec_code||r.elec_name){ elec[k]={}; if(r.elec_code)elec[k].code=String(r.elec_code); if(r.elec_name)elec[k].name=String(r.elec_name); }
+    // TASK 3A: validated on the way IN -- a blank, non-numeric or out-of-range column is
+    // dropped rather than allowed to render a broken map. finishAuth() rebuilds from here.
+    const mc=mvValidCol(r.moved_col); if(mc!=null) moves[k]=mc;
   });
+  // TASK 3B: hydrate student-added courses. Each row is validated on the way in -- a
+  // malformed one (bad key, missing name, out-of-range column, unknown category) is
+  // skipped outright, never rendered as a broken box (validCustomRow).
+  if(p && p.customs) p.customs.forEach(r=>{ const c=validCustomRow(r); if(c) customs[c.key]=c; });
   const prof=(p&&p.profile)||{};
   CURRENT={ student_id: prof.student_id||CURRENT.student_id, name: prof.name||"",
     advisor: prof.advisor||"", advisor_comment: prof.advisor_comment||"", role: prof.role||"student" };
   advComment = CURRENT.advisor_comment || "";
   stu.name = CURRENT.name || ""; stu.id = CURRENT.student_id || "";
+  track = validTrack(prof.track);   // TASK 2: unrecognised/absent value falls back to 'regular'
 }
 
 // offline / unreachable backend: load this student's cached state from localStorage
@@ -1279,9 +2097,14 @@ function loadOfflineCache(sid){
     Object.assign(stars,  JSON.parse(localStorage.getItem("cie_stars:"+sid)||"{}"));
     Object.assign(notes,  JSON.parse(localStorage.getItem("cie_notes:"+sid)||"{}"));
     Object.assign(elec,   JSON.parse(localStorage.getItem("cie_elec:"+sid)||"{}"));
+    const mv=JSON.parse(localStorage.getItem("cie_moves:"+sid)||"{}");   // TASK 3A
+    Object.keys(mv).forEach(k=>{ const c=mvValidCol(mv[k]); if(c!=null) moves[k]=c; });
+    const cs=JSON.parse(localStorage.getItem("cie_custom:"+sid)||"{}");  // TASK 3B
+    Object.keys(cs).forEach(k=>{ const c=validCustomRow(cs[k]); if(c) customs[c.key]=c; });
   }catch(e){}
   advComment = (function(){ try{ return localStorage.getItem("cie_adv:"+sid)||""; }catch(e){ return ""; } })();
   stu.id=sid; if(!stu.name) stu.name=sid;
+  track = validTrack((function(){ try{ return localStorage.getItem("cie_track:"+sid); }catch(e){ return null; } })());
 }
 
 // ---- login / register ----
@@ -1310,7 +2133,13 @@ function setMode(m){
 }
 toggleMode.addEventListener('click',()=>setMode(mode==='login'?'register':'login'));
 
-function finishAuth(){ rehydrate(); loginEl.classList.add('hide'); }
+function finishAuth(){
+  // TASK 2: the saved track may differ from the 'regular' PLAN the page booted with
+  // (rebuildMap(true) at first render, before login) -- re-derive PLAN from the
+  // now-known track and do a full relayout, not just the repaint path.
+  updateTrackUI(); rebuildMap(true);   // rebuildMap re-derives PLAN from the loaded track
+  rehydrate(); loginEl.classList.add('hide');
+}
 function authBusy(label){ loginErr.textContent=""; loginBtn.disabled=true; loginBtn.textContent=label; }
 function authReset(){ loginBtn.disabled=false; loginBtn.textContent = (mode==='register')?'Create account':'Sign in'; }
 
@@ -1369,7 +2198,7 @@ if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v13';
+const APP_BUILD='v17';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){

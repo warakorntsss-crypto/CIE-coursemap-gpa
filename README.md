@@ -23,6 +23,27 @@ self-contained interactive HTML app (`index.html`, opens by double-click — no 
   **"Contact your Academic Advisor"** warning when a condition is unmet. The student's study year is
   derived from the ID prefix (e.g. `67…` → Year 3); a non-numeric prefix shows "Year unknown".
   Source of the rules: CIE Year-End Meeting 2-68 deck.
+- **Major GPA** — shown beside the cumulative GPA in the Progress panel and on both printed
+  layouts. It averages every **CE-department subject**: the Civil Major courses, the major
+  electives, and the CE labs (`CE216`, `CE262`, `CE334`, `CE372`, `CE400`) — 67 credits in the
+  regular plan. General education, English, free electives and the capstone are excluded.
+- **Track selection (Regular ↔ Co-op)** — a `Plan:` selector swaps the whole map to the co-op
+  curriculum: the summer `CE400` internship and one major elective slot are dropped, `CE401`
+  Cooperative Education (6 cr) takes Year 4 Semester 1 alone, and `CE413` / `CE451` / the Year-4
+  free elective shift into Semester 2 (0 / 6 / 18 credits, still 149 total). Choosing co-op runs
+  the eligibility check and lists any unmet condition with the advisor warning, but **never blocks**
+  the switch. Switching back is lossless — grades for dropped courses are kept, just not counted.
+  Source: the *Study Plans (Co-op track)* slide of the CIE Year-End Meeting 2-68 deck.
+- **Adjust your actual plan** — `✎ edit` mode turns on a move grip on every course. Tap it for a
+  "Move to…" semester list, or drag the box to another column. The **per-semester GPA follows the
+  real placement**, so a withdrawn-and-retaken course counts where it was actually studied; the
+  cumulative GPA is unaffected. Nothing is blocked — a prerequisite landing after its dependent, or
+  an unusual credit load, is flagged in a toast (co-requisites may share a semester). `↺ reset`
+  restores the published plan. A prerequisite arrow that ends up pointing backwards is re-routed
+  around the boxes and drawn in red.
+- **Add a course** — `+ add` gives either a quick extra elective slot or a full custom course
+  (code, name, credits, category, semester), for off-plan or repeated subjects. Custom courses take
+  grades, count toward credits and GPA, get their own legend category, and can be removed.
 - **Editable electives** — for elective slots the student can edit the registered **course code**
   and type the **actual course name**; both flow into the printed documents.
 - **Save as PDF** — a formal A4 document via the browser print dialog, in two layouts:
@@ -40,7 +61,8 @@ self-contained interactive HTML app (`index.html`, opens by double-click — no 
 | `curriculum_data.py` | **Single source of truth** — courses, credits, categories, prerequisites, descriptions. |
 | `build-interactive.py` | Generates `index.html` (the interactive app). |
 | `build-map.py` | Generates `CIE-CivilEng-CourseMap.drawio` (editable diagram). |
-| `index.html` | The generated, self-contained app. |
+| `index.html` | The generated, self-contained app (**static, no backend**). |
+| `docs/` | **The live app** served by GitHub Pages — `index.html` + `data.js` + the service worker. Hand-maintained and diverged from the generator; edit it directly and never regenerate over it. |
 | `CIE-CivilEng-CourseMap.drawio` | The generated draw.io diagram. |
 
 ## Rebuild
@@ -50,6 +72,17 @@ self-contained interactive HTML app (`index.html`, opens by double-click — no 
 python build-interactive.py     # -> index.html
 python build-map.py             # -> CIE-CivilEng-CourseMap.drawio
 ```
+
+## The two builds
+
+`build-interactive.py` regenerates the **repo-root** `index.html` — the offline, single-file,
+no-backend version. The **live app under `docs/`** is a separate, hand-maintained build with the
+Google Sheet backend, multi-student login, the track swap and the plan editor. They have diverged
+on purpose; running the generator does not and must not touch `docs/`.
+
+When changing `docs/`, bump **both** `CACHE` in `docs/service-worker.js` and `APP_BUILD` in
+`docs/index.html` — two separate hand-kept strings, and the build id is printed in the header so a
+bug report reveals a stale cached shell.
 
 ## Data note
 

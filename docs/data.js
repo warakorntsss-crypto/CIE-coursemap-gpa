@@ -47,13 +47,26 @@ window.API = {
     return apiPost({ action: "setGrade", student_id, sem, course_key, grade });
   },
 
-  // extras = {starred, note, elec_code, elec_name}; upserts one row in the `extras` tab
+  // extras = {starred, note, elec_code, elec_name, moved_col}; upserts one row in `extras`.
+  // moved_col is the semester column the student actually took the course in ("" = follows the plan).
   setExtra(student_id, course_key, data) {
     return apiPost({ action: "setExtra", student_id, course_key, data });
   },
 
-  // data = {name, advisor_comment}; updates the student's `students` row
+  // data = {name, advisor_comment, track}; updates the student's `students` row
   setProfile(student_id, data) {
     return apiPost({ action: "setProfile", student_id, data });
+  },
+
+  // a student-added course that is not in the curriculum. Definition only — its grade goes
+  // through setGrade into its home semester tab, like every other course.
+  // data = {code, name, cr, cat, col, major_gpa}; upserts one row in the `custom` tab.
+  setCustom(student_id, course_key, data) {
+    return apiPost({ action: "setCustom", student_id, course_key, data });
+  },
+
+  // removes a student-added course
+  delCustom(student_id, course_key) {
+    return apiPost({ action: "setCustom", student_id, course_key, remove: true });
   }
 };
