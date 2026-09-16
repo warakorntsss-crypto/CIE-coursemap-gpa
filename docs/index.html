@@ -2701,6 +2701,53 @@ function applyPayload(p){
   // by finishAuth, before the first rebuild) then raises this to whatever the student's own
   // moves/customs require, so a missing or stale scalar never drops a course.
   { const xs=parseInt(prof.extra_sems,10); extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
+  recoverOrphanCustoms((p&&p.customs&&p.customs.length)||0);   // RECOVERY: see below
+}
+
+// ---- RECOVERY (one-shot). For a period setCustom failed silently on every call while setExtra,
+// hitting a tab that did exist, kept succeeding -- so a student can have stars/notes/moves and
+// even grades in the Sheet that reference a course whose DEFINITION was never stored. Such a
+// course hydrates as nothing on login and the box simply does not appear. The definitions do
+// survive in this device's cache, so push back whatever the Sheet is missing.
+//
+// Deliberately narrow, because a blind re-push would resurrect a course the student deleted on
+// ANOTHER device -- there this device's cache is merely stale, not authoritative. Two guards keep
+// that to a single pass: it runs only when the server returned NO customs at all while this device
+// has some, and it sets a per-student flag so it never runs twice. The flag is set only once every
+// write has succeeded; a partial failure leaves it unset so the next sign-in finishes the job
+// (setCustom upserts by id, so a repeat is a no-op).
+//
+// The in-memory fill is synchronous -- finishAuth()'s rebuildMap() runs right after applyPayload()
+// and must already see the recovered courses -- while the writes go out in the background, one at
+// a time rather than as a burst, to stay clear of the script lock. ----
+function recoverOrphanCustoms(serverCount){
+  if(!CURRENT || !HAS_API() || OFFLINE) return;
+  let done, raw;
+  try{ done=localStorage.getItem(cacheKey("cie_custfix")); raw=localStorage.getItem(cacheKey("cie_custom")); }
+  catch(e){ return; }                       // no storage -> nothing cached to recover from anyway
+  if(done) return;
+  const mark=()=>{ try{ localStorage.setItem(cacheKey("cie_custfix"),"1"); }catch(e){} };
+  if(serverCount>0 || !raw){ mark(); return; }   // sync is healthy (or nothing cached): stand down
+  let cached={};
+  try{ cached=JSON.parse(raw)||{}; }catch(e){ mark(); return; }
+  const found=[];
+  Object.keys(cached).forEach(k=>{
+    const c=validCustomRow(cached[k]);      // same gate as every other hydration path
+    if(c && !customs[c.key]){ customs[c.key]=c; found.push(c); }
+  });
+  if(!found.length){ mark(); return; }
+  console.info("recovering "+found.length+" custom course definition(s) missing from the Sheet");
+  (async()=>{
+    let failed=0;
+    for(const c of found){
+      try{
+        await API.setCustom(CURRENT.student_id, c.key, { code:c.short, name:c.name, cr:c.cr,
+          cat:c.cat, col:c.col, major_gpa:c.majorGpa===true, retake_of:c.retakeOf||'' });
+      }catch(err){ failed++; console.warn("custom recovery failed:",c.key,err); }
+    }
+    if(failed) showBanner("⚠ "+failed+" course(s) could not be restored — retrying next sign-in");
+    else mark();
+  })();
 }
 
 // offline / unreachable backend: load this student's cached state from localStorage
@@ -2817,7 +2864,7 @@ if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v23';
+const APP_BUILD='v24';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
