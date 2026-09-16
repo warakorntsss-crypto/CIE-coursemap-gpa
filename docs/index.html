@@ -43,11 +43,12 @@ header{
 .lg.off{opacity:.38; text-decoration:line-through}
 .lg i{width:11px; height:11px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,.18)}
 .tools{display:flex; align-items:center; gap:9px; margin-left:auto; flex-wrap:wrap}
-.tools input[type=search]{background:#fff; border:1px solid var(--panel-line); color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:12px; padding:8px 10px; border-radius:6px; width:150px}
+.tools input[type=search]{background:var(--btn-bg,#fff); border:1px solid var(--panel-line); color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:12px; padding:8px 10px; border-radius:6px; width:150px}
 .tools input::placeholder{color:#5f7187}
-.btn{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.5px; background:#fff; color:#44566b; border:1px solid var(--panel-line); padding:8px 11px; border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap}
+.btn{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.5px; background:var(--btn-bg,#fff); color:#44566b; border:1px solid var(--panel-line); padding:8px 11px; border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap}
 .btn:hover{color:var(--ink); border-color:var(--cyan)}
 .btn.on{color:#42300a; background:#fbbf24; border-color:#f59e0b; font-weight:600}
+.btn:focus-visible,.tools input[type=search]:focus-visible{outline:2px solid var(--cyan); outline-offset:1px; position:relative; z-index:2}
 .counts{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim); white-space:nowrap}
 .counts b{color:var(--amber-ink)}
 /* ---- scroll + map ---- */
@@ -477,9 +478,9 @@ body.editing #addBtn{display:block}
 .logundo{margin-left:auto; font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--cyan);
   background:none; border:1px solid var(--panel-line); border-radius:5px; padding:2px 7px; cursor:pointer}
 .logundo:hover{border-color:var(--cyan); background:rgba(23,92,204,.08)}
-.logrow ul{margin:3px 0 0; padding-left:15px; color:#5a4205}
-.issfoot{margin-top:10px; padding-top:8px; border-top:1px solid var(--panel-line);
-  font-size:10px; color:var(--ink-dim); line-height:1.4}
+.devlabel{background:none; border:0; padding:0; margin:0; font:inherit; color:inherit; cursor:pointer; text-align:left}
+.devlabel:hover{color:var(--cyan)}
+.devlabel:focus-visible{outline:none; box-shadow:0 0 0 1px var(--cyan)}
 /* ---- RETAKE: withdrawn-course re-take button, box badge, and picker dialog (TASK 3 LAST) ---- */
 .node .rtbadge{position:absolute; left:5px; top:3px; width:15px; height:15px; border-radius:50%;
   background:#9673A6; color:#fff; font-size:10px; line-height:15px; text-align:center; display:none; pointer-events:none}
@@ -493,6 +494,46 @@ body.editing #addBtn{display:block}
   background:rgba(20,40,80,.55); padding:16px}
 #rtDlg.open{display:flex}
 @media print{ #rtDlg{display:none !important} }
+/* ---- toolbar regrouping (Change 3): 5 segmented clusters, grouped structurally --
+   shared borders (no doubled 1px seams), square inner corners, rounded outer corners --
+   not by per-group colour (the category legend above already owns colour-as-category).
+   The only tint is a two-tier --btn-bg custom property, inherited from the cluster onto
+   every .btn/search input inside it: warm = this cluster changes the student's plan
+   (Plan, Edit), cool = it only looks at the plan (Find, Requirements, Review). .btn and
+   .btn.on read background from var(--btn-bg,#fff) but .btn.on ALSO sets its own amber
+   background directly -- a same-specificity, more-specific selector (.btn.on vs .btn)
+   always wins over the inherited var, so the amber "on" state is unaffected by tint. ---- */
+.toolgrp{display:flex; flex:0 0 auto}
+.toolgrp>.btn,.toolgrp>input[type=search]{border-radius:0}
+.toolgrp>*:not(:first-child){border-left:none}
+.toolgrp>:first-child{border-top-left-radius:6px; border-bottom-left-radius:6px}
+.toolgrp>:last-child{border-top-right-radius:6px; border-bottom-right-radius:6px}
+/* Two tiers, not five colours: the clusters that CHANGE the plan read warm, the ones that only
+   read it stay cool. Kept well clear of .btn.on's solid amber, which still means "active".
+   :not(.on) on the border rule is load-bearing -- .toolgrp.warm>.btn is more specific than
+   .btn.on, so without it the warm border would override the active state's own border. */
+.toolgrp.cool{--btn-bg:rgba(23,92,204,.045)}
+.toolgrp.warm{--btn-bg:rgba(217,119,6,.15)}
+.toolgrp.warm>.btn:not(.on),.toolgrp.warm>select:not(.on){border-color:rgba(180,83,9,.34); color:#7c4a09}
+.toolgrp.warm>.btn:not(.on):hover{border-color:var(--amber-ink); color:#5c3607}
+/* Edit cluster: #mvResetAll/#addBtn are display:none outside edit mode (pre-existing rules
+   above), so #editBtn is briefly the cluster's only visible member -- :last-child still
+   targets the (hidden) #addBtn then, so editBtn needs its own right-corner rounding back. */
+body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bottom-right-radius:6px}
+@media (max-width:720px){
+  .toolgrp.find{flex:1 1 100%}   /* Find gets its own full-width row so the search box has room */
+  .toolgrp.find input[type=search]{flex:1; min-width:110px; width:auto}
+}
+/* ---- WITHDRAWN / EDGE TRANSFER: a course blocked by a still-withdrawn prerequisite, and
+   the box left behind once that prerequisite is re-taken. Screen-only -- like every other
+   planIssues() row, this is a planning aid; the printed PDF (#docview) is a separate
+   document built by buildFull/buildCompact and untouched here. ---- */
+.node.blocked{box-shadow:0 0 0 2px #dc2626,0 6px 14px rgba(220,38,38,.22)}
+.node.blocked .code{color:#b3261e}
+.wire.blocked{stroke:#dc2626; stroke-width:1.8}
+/* grayscale+opacity, not opacity alone: a plain opacity would also fade the grade select's
+   OWN text, which must stay as legible as any other box -- it's still real transcript data. */
+.node.superseded{filter:grayscale(70%); opacity:.82}
 </style>
 </head>
 <body>
@@ -526,21 +567,36 @@ body.editing #addBtn{display:block}
     </div>
     <div class="legend" id="legend"></div>
     <div class="tools">
-      <input type="search" id="search" placeholder="search…" autocomplete="off"/>
-      <button class="btn" id="starsBtn">★ starred</button>
-      <button class="btn" id="internBtn" title="Highlight the subjects required for the internship">⚑ intern</button>
-      <button class="btn" id="coopBtn" title="Highlight the subjects required for co-op eligibility">⚑ co-op req.</button>
-      <select class="btn" id="planSel" title="Switch between the Regular and Co-op (สหกิจศึกษา) curriculum">
-        <option value="regular">Plan: Regular</option>
-        <option value="coop">Plan: Co-op</option>
-      </select>
-      <button class="btn" id="editBtn" title="Edit mode: move a course to another semester">✎ edit</button>
-      <button class="btn" id="mvResetAll" title="Put every moved course back on the plan">↺ reset</button>
-      <button class="btn" id="addBtn" title="Add a free elective slot, or an off-plan/repeated course">+ add</button>
-      <button class="btn" id="trackBtn" title="Internship &amp; co-op eligibility report">⚑ tracks</button>
-      <button class="btn" id="sumBtn">▣ progress</button>
-      <button class="btn" id="issuesBtn">⚠ checks<span class="issbadge" id="issuesBadge"></span></button>
-      <button class="btn" id="pdfBtn">⭳ save pdf</button>
+      <!-- Find: cool, look-only -->
+      <div class="toolgrp find cool">
+        <input type="search" id="search" placeholder="search…" autocomplete="off"/>
+        <button class="btn" id="starsBtn">★ starred</button>
+      </div>
+      <!-- Requirements: cool, look-only -- all three share the ⚑ glyph -->
+      <div class="toolgrp req cool">
+        <button class="btn" id="internBtn" title="Highlight the subjects required for the internship">⚑ intern</button>
+        <button class="btn" id="coopBtn" title="Highlight the subjects required for co-op eligibility">⚑ co-op req.</button>
+        <button class="btn" id="trackBtn" title="Internship &amp; co-op eligibility report">⚑ tracks</button>
+      </div>
+      <!-- Plan: warm, changes the curriculum -->
+      <div class="toolgrp plan warm">
+        <select class="btn" id="planSel" title="Switch between the Regular and Co-op (สหกิจศึกษา) curriculum">
+          <option value="regular">Plan: Regular</option>
+          <option value="coop">Plan: Co-op</option>
+        </select>
+      </div>
+      <!-- Edit: warm, changes the student's plan -->
+      <div class="toolgrp edit warm">
+        <button class="btn" id="editBtn" title="Edit mode: move a course to another semester">✎ edit</button>
+        <button class="btn" id="mvResetAll" title="Put every moved course back on the plan">↺ reset</button>
+        <button class="btn" id="addBtn" title="Add a free elective slot or an off-plan/repeated course, or remove one you already added">&#65291;add / &#8722;delete</button>
+      </div>
+      <!-- Review: cool, look-only -->
+      <div class="toolgrp review cool">
+        <button class="btn" id="sumBtn">▣ progress</button>
+        <button class="btn" id="issuesBtn">⚠ checks<span class="issbadge" id="issuesBadge"></span></button>
+        <button class="btn" id="pdfBtn">↓ save pdf</button>
+      </div>
       <span class="counts" id="counts"></span>
       <span id="whoami"></span>
     </div>
@@ -921,6 +977,7 @@ function rebuildMap(relayout){
   // inputs; every one of them changes what planNodes() returns.
   PLAN=planNodes();
   _issuesCache=null;   // RECAP: PLAN just changed, so the memoised issue list is stale
+  _edgesCache=null;    // WITHDRAWN: ditto for the retake-remapped edge list -- see planEdges()
   // ---- remember view state ----
   const keepL=scroll.scrollLeft, keepT=scroll.scrollTop;
   const keepPinned=pinned, keepPanel=curPanel;
@@ -935,10 +992,11 @@ function rebuildMap(relayout){
   TOTAL_CR=PLAN.sems.reduce((s,x)=>s+x.cr,0);
   const bc=document.getElementById('brandCr'); if(bc) bc.textContent=TOTAL_CR;
 
-  // adjacency (edges live in DATA; drop any whose endpoints are not in this PLAN,
-  // otherwise a dropped course leaves a dangling wire)
+  // adjacency (edges from planEdges() -- WITHDRAWN: pre-pointed to each endpoint's newest
+  // re-take attempt -- drop any whose endpoints are not in this PLAN, otherwise a dropped
+  // course leaves a dangling wire)
   clearObj(prereqsOf); clearObj(unlocksOf);
-  DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t]) return;
+  planEdges().forEach(e=>{ if(!byKey[e.s]||!byKey[e.t]) return;
     (prereqsOf[e.t]=prereqsOf[e.t]||[]).push(e.s); (unlocksOf[e.s]=unlocksOf[e.s]||[]).push(e.t); });
   clearObj(ancCache); clearObj(descCache);      // the closures above just changed
 
@@ -973,7 +1031,7 @@ function rebuildMap(relayout){
 
   // ---- edge attach ordering ----
   clearObj(outE); clearObj(inE);
-  DATA.edges.forEach(e=>{ if(!byKey[e.s]||!byKey[e.t])return; (outE[e.s]=outE[e.s]||[]).push(e); (inE[e.t]=inE[e.t]||[]).push(e); });
+  planEdges().forEach(e=>{ if(!byKey[e.s]||!byKey[e.t])return; (outE[e.s]=outE[e.s]||[]).push(e); (inE[e.t]=inE[e.t]||[]).push(e); });
   for(const k in outE) outE[k].sort((a,b)=>rk(a.t)-rk(b.t));
   for(const k in inE)  inE[k].sort((a,b)=>rk(a.s)-rk(b.s));
 
@@ -983,7 +1041,7 @@ function rebuildMap(relayout){
   wireMeta.length=0;
   // pass 1: attach points + which gutter(s)/lane each edge wants
   const wireInfo=[]; const GUT_GROUP={}, LANE_GROUP={};
-  DATA.edges.forEach(e=>{
+  planEdges().forEach(e=>{
     if(!byKey[e.s]||!byKey[e.t]) return;
     const s=byKey[e.s], t=byKey[e.t], sp=pos[e.s], tp=pos[e.t];
     const ko=outE[e.s].length, io=outE[e.s].indexOf(e);
@@ -1200,13 +1258,12 @@ function paintNode(key){
   const wrap=el.querySelector('.retakes');
   if(wrap){
     const retakes=parts.slice(1);                                   // existing retake attempts
-    // RETAKE: only a terminal F still auto-appends the legacy blank inline slot. W now gets
-    // the standalone re-take BUTTON below instead. needsRetake/combineAttempts themselves are
-    // UNTOUCHED -- a legacy "W>B" chain (terminal grade B, not W) still renders both selects
-    // here and still round-trips through combineAttempts exactly as before.
-    if(parts[parts.length-1]==='F') retakes.push('');
+    // RETAKE: F and W both get the standalone re-take BUTTON, and neither auto-appends a
+    // blank inline slot any more -- one mechanism, not two. needsRetake/combineAttempts are
+    // still UNTOUCHED, so a legacy chain ("W>B" / "F>B", terminal grade B) keeps rendering
+    // every stored attempt here and keeps round-tripping through combineAttempts as before.
     let html=retakes.map(retakeOpts).join('');
-    if(effGrade(g)==='W') html+='<button type="button" class="rtbtn" title="Re-take this withdrawn course">&#8635; re-take</button>';
+    if(needsRetake(effGrade(g))) html+='<button type="button" class="rtbtn" title="Re-take this course">&#8635; re-take</button>';
     wrap.innerHTML=html;
   }
   applyGradeClass(key, g);
@@ -1228,6 +1285,10 @@ function setGrade(key,g){
   if(g) grades[key]=g; else delete grades[key];
   saveGrades(); syncGrade(key); applyGradeClass(key,g); computeSummary();
   if(trackOn) applyFilters();      // re-colour the track rings for the new grade
+  // WITHDRAWN: a grade edit alone doesn't touch PLAN/retakeNext/edges, so a full
+  // rebuildMap() would be overkill -- but it can flip blocking status (W set or cleared,
+  // on either the original or a re-take) and the issues list, so refresh just those.
+  _issuesCache=null; applyBlockedMarks(); renderIssues();
 }
 // per-semester GPA data, shared by the on-screen panel and the PDF document
 function gpaData(){
@@ -1515,7 +1576,6 @@ function showMoveToast(head,list){
 // whole map re-shuffling under the student.
 function commitMove(key,col){
   const before=byKey[key]?byKey[key].col:null;
-  const esBefore=extraSems;   // RECAP: classifies the log entry as grow/trim/move, below
   // EXTRA YEARS: col===totalSems() is the grow sentinel from mvColFromClientX/the "+ Add"
   // row -- grow the plan by one column first so the mvValidCol() below has somewhere to land.
   if(col===totalSems() && canGrow()){ extraSems++; syncSems(); }
@@ -1528,9 +1588,6 @@ function commitMove(key,col){
   const n=byKey[key]; if(!n || n.col===before) return;    // nothing actually moved: stay quiet
   const w=moveWarnings(key);
   showMoveToast(esc(n.short)+' &rarr; '+esc(PLAN.sems[n.col].label)+(w.length?' &middot; check:':' &middot; moved.'), w);
-  // RECAP: reuse the warnings array already computed for the toast -- no extra work.
-  logMove({kind: extraSems>esBefore?'grow':(extraSems<esBefore?'trim':'move'),
-    key, short:n.short, before, after:n.col, afterLabel:PLAN.sems[n.col].label, warnings:w});
 }
 
 // ---- tap path: "Move to…" (ships first; works with no pointer at all) ----
@@ -1766,7 +1823,6 @@ function createCustomElective(col){
   syncCustom(key);
   rebuildMap(true);
   showMoveToast('Elective slot added &rarr; '+esc(PLAN.sems[col]?PLAN.sems[col].label:'?')+'.', []);
-  logMove({kind:'add', key, short:customs[key].short, after:col, afterLabel:PLAN.sems[col]?PLAN.sems[col].label:'?'});
 }
 function addCustomCourse(f){
   const key=genCustomKey();
@@ -1775,7 +1831,6 @@ function addCustomCourse(f){
   syncCustom(key);
   rebuildMap(true);
   showMoveToast(esc(f.code)+' added &rarr; '+esc(PLAN.sems[f.col]?PLAN.sems[f.col].label:'?')+'.', []);
-  logMove({kind:'add', key, short:f.code, after:f.col, afterLabel:PLAN.sems[f.col]?PLAN.sems[f.col].label:'?'});
 }
 // removable: clears the box, its grade, its extras row (star/note/elec/moved_col) and the
 // backend `custom` row. Grade/extra captured & synced BEFORE the delete so homeCol()/semOf()
@@ -1798,7 +1853,6 @@ function removeCustomCourse(key){
   trimExtraSems();   // EXTRA YEARS: this course may have been the last thing in a trailing column
   rebuildMap(true);
   showMoveToast('Removed '+esc(n.short)+'.', []);
-  logMove({kind:'remove', key, short:n.short, before:n.col, snapshot:Object.assign({},n)});
 }
 
 // ---- dialog: choice + the student's own added courses (that list IS the removal UI) ----
@@ -1968,11 +2022,11 @@ function mvHideGrowGhost(){
 
 // ===========================================================================
 // ==== RECAP PANEL ====
-// One dock (#issues, a .dockpanel like #summary), two sections: the LIVE issue list --
-// re-derived from PLAN on every rebuild, geometry only, never grades -- and this session's
-// MOVE HISTORY, newest first, capped at 50 and kept in sessionStorage only (it describes
-// THIS session's actions; the Sheet would mean a new tab/action/unbounded row growth for
-// an advisory nicety, and localStorage would silently diverge across devices).
+// One dock (#issues, a .dockpanel like #summary), two sections, BOTH derived fresh from
+// current state on every render -- no stored log, so both survive a reload for free.
+// Section 1: live issues (broken rules). Section 2: how the plan currently differs from
+// the published curriculum (moved/added/re-take courses, extra years, track) -- the
+// STATE of the deviation, not a history of the actions that produced it.
 // ===========================================================================
 
 // ---- live issues: see moveWarnings() above (TASK 3A block) for why this is memoised and
@@ -1984,13 +2038,27 @@ function planIssues(){
   // ONE row per violated edge (not once per direction: the old moveWarnings() reported
   // the same violation from both the dependent's side and the prerequisite's, with
   // different wording -- that duplication is exactly what this rewrite removes).
-  DATA.edges.forEach(e=>{
+  // edges from planEdges() -- WITHDRAWN: already re-pointed to each endpoint's newest
+  // re-take attempt, so this rule measures against the re-take's column for free.
+  planEdges().forEach(e=>{
     const s=byKey[e.s], t=byKey[e.t]; if(!s||!t) return;
     // a CO-requisite may legitimately share a column; a hard prerequisite must finish strictly earlier
     if(e.co ? s.col>t.col : s.col>=t.col)
       out.push({kind:'prereq', key:e.t, keys:[e.t,e.s],
         html:'Prerequisite <b>'+esc(s.short)+'</b> ('+esc(PLAN.sems[s.col].label)+') is not before <b>'+
           esc(t.short)+'</b> ('+esc(PLAN.sems[t.col].label)+').'});
+  });
+  // WITHDRAWN: one row per direct dependent of a still-blocking prerequisite (graded W and
+  // not yet passed on any attempt in its chain -- judged from the ORIGINAL endpoint `os` so
+  // an ungraded re-take still counts as not-yet-passed; see applyBlockedMarks()). One row
+  // per edge, same convention as the prereq rule just above -- a dependent with two
+  // withdrawn prerequisites gets two rows, each naming the one that blocks it.
+  planEdges().forEach(e=>{
+    const s=byKey[e.s], t=byKey[e.t]; if(!s||!t) return;
+    if(!needsRetake(judgedGrade(e.os))) return;   // F and W both fail to satisfy a prerequisite
+    out.push({kind:'withdrawn', key:e.t, keys:[e.t,e.s],
+      html:'<b>'+esc(t.short)+'</b> needs <b>'+esc(s.short)+'</b>, which is '+
+        (judgedGrade(e.os)==='F'?'failed':'withdrawn')+' and not yet passed.'});
   });
   // ONE row per overloaded column (a column property -- not once per course sitting in it).
   PLAN.sems.forEach((sm,c)=>{
@@ -2011,55 +2079,42 @@ function planIssues(){
   return out;
 }
 
-// ---- history: appended by commitMove/createCustomElective/addCustomCourse/removeCustomCourse,
-// reusing whatever they already computed for #mvToast -- one extra call, no extra work. ----
-const moveLog=[];   // newest first, capped at 50, {id,ts,kind,key,short,before,after,afterLabel,warnings,snapshot}
-let _logId=0;
-function saveMoveLog(){ try{ sessionStorage.setItem(cacheKey('cie_movelog'), JSON.stringify(moveLog)); }catch(e){} }
-function loadMoveLog(){   // called from finishAuth(), once CURRENT/cacheKey resolve to this student
-  moveLog.length=0; _logId=0;
-  try{
-    const raw=JSON.parse(sessionStorage.getItem(cacheKey('cie_movelog'))||'[]');
-    if(Array.isArray(raw)) raw.forEach(e=>{ moveLog.push(e); if(e.id>_logId) _logId=e.id; });
-  }catch(e){}
+// ---- deviations: recomputed from moves/customs/extraSems/track on every render, nothing
+// stored -- this IS the reload-survives-for-free property the old sessionStorage log lacked.
+// Order: moved courses, added courses, re-takes, extra years, track. ----
+function planDeviations(){
+  const out=[];
+  Object.keys(moves).forEach(key=>{             // moved: skip anything back on its plan column
+    const n=byKey[key]; if(!n) return;
+    const plan=planCol(key); if(n.col===plan || !PLAN.sems[plan]) return;
+    out.push({key, kind:'move', label:'<b>'+esc(n.short)+'</b> &middot; '+esc(PLAN.sems[plan].label)+
+      ' &rarr; '+esc(PLAN.sems[n.col].label)});
+  });
+  Object.keys(customs).forEach(key=>{            // added: customs without retakeOf
+    const c=customs[key]; if(!c || c.retakeOf) return;
+    const col=byKey[key]?byKey[key].col:c.col;
+    out.push({key, kind:'add', label:'<b>'+esc(c.short)+'</b> &middot; added in '+
+      esc(PLAN.sems[col]?PLAN.sems[col].label:'?')});
+  });
+  Object.keys(customs).forEach(key=>{            // re-takes: customs with retakeOf
+    const c=customs[key]; if(!c || !c.retakeOf) return;
+    const col=byKey[key]?byKey[key].col:c.col;
+    out.push({key, kind:'retake', label:'<b>'+esc(c.short)+'</b> &middot; re-take in '+
+      esc(PLAN.sems[col]?PLAN.sems[col].label:'?')});
+  });
+  if(extraSems>0)                                // EXTRA YEARS
+    out.push({key:null, kind:'extra', label:'Plan extended to <b>'+esc(semLabelAt(totalSems()-1))+'</b>'});
+  if(track==='coop')                             // track swap
+    out.push({key:null, kind:'track', label:'Curriculum: <b>Co-op track</b>'});
+  return out;
 }
-function logMove(e){
-  e.id=++_logId; e.ts=Date.now();
-  moveLog.unshift(e);
-  if(moveLog.length>50) moveLog.length=50;
-  saveMoveLog();
-  renderIssues();
-}
-// undo: logs a NEW entry rather than popping the old one -- honest (the undo itself is an
-// action worth a row) and nearly free, since it is just another call into the same paths.
-function undoLogEntry(id){
-  const e=moveLog.find(x=>x.id===id); if(!e) return;
-  if(e.kind==='move'||e.kind==='grow'||e.kind==='trim'){
-    if(byKey[e.key]) commitMove(e.key, e.before);       // before===null means "back on the plan"
-  }else if(e.kind==='add'||e.kind==='retake'){
-    if(customs[e.key]) removeCustomCourse(e.key);
-  }else if(e.kind==='remove'){
-    if(e.snapshot && !customs[e.key]){                  // restore the exact row that was deleted
-      customs[e.key]=Object.assign({},e.snapshot);
-      syncCustom(e.key); trimExtraSems(); rebuildMap(true);
-      showMoveToast(esc(e.snapshot.short)+' restored.', []);
-      logMove({kind:'add', key:e.key, short:e.snapshot.short, after:e.snapshot.col,
-        afterLabel:PLAN.sems[e.snapshot.col]?PLAN.sems[e.snapshot.col].label:'?'});
-    }
-  }
+function renderDevRow(d){
+  const label=d.key ? '<button class="devlabel" data-key="'+d.key+'">'+d.label+'</button>' : '<span>'+d.label+'</span>';
+  const revert=d.key ? '<button class="logundo" data-key="'+d.key+'" data-kind="'+d.kind+'">&#8635; revert</button>' : '';
+  return '<div class="logrow"><div class="logmain">'+label+revert+'</div></div>';
 }
 
 // ---- render: both sections, into #issues (shared dock with #summary) ----
-const KIND_LABEL={move:'moved',grow:'grew the plan',trim:'trimmed the plan',add:'added',remove:'removed',retake:'re-take added'};
-function renderLogRow(e){
-  const time=new Date(e.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  const canUndo=(e.kind==='move'||e.kind==='grow'||e.kind==='trim')
-    ? !!byKey[e.key] : ((e.kind==='add'||e.kind==='retake') ? !!customs[e.key] : (e.kind==='remove' && !!e.snapshot && !customs[e.key]));
-  const w=(e.warnings&&e.warnings.length)?('<ul>'+e.warnings.join('')+'</ul>'):'';
-  return '<div class="logrow"><div class="logmain"><span class="logt">'+time+'</span> <b>'+esc(e.short||e.key||'?')+
-    '</b> '+(KIND_LABEL[e.kind]||esc(e.kind))+(e.afterLabel?' &rarr; '+esc(e.afterLabel):'')+
-    (canUndo?'<button class="logundo" data-id="'+e.id+'">&#8635; undo</button>':'')+'</div>'+w+'</div>';
-}
 function renderIssues(){
   const list=issues();
   const badge=document.getElementById('issuesBadge');
@@ -2068,19 +2123,24 @@ function renderIssues(){
     ? list.map(i=>'<button class="issrow'+(i.kind==='load'?' load':'')+'" data-key="'+(i.key||'')+
         '" data-col="'+(i.col!=null?i.col:'')+'">'+i.html+'</button>').join('')
     : '<div class="issempty">No problems &mdash; every prerequisite and credit load checks out.</div>';
-  const histHtml=moveLog.length ? moveLog.map(renderLogRow).join('')
-    : '<div class="issempty">No moves yet this session.</div>';
+  const devs=planDeviations();
+  const devHtml=devs.length ? devs.map(renderDevRow).join('')
+    : '<div class="issempty">Matches the published curriculum.</div>';
   const body=document.getElementById('issBody'); if(!body) return;
   body.innerHTML='<div class="isssec"><b>Current issues</b>'+issHtml+'</div>'+
-    '<div class="isssec"><b>Move history</b>'+histHtml+'</div>'+
-    '<div class="issfoot">History is for this session only &mdash; not saved to the sheet.</div>';
-  body.querySelectorAll('.issrow').forEach(b=>b.addEventListener('click',()=>{
+    '<div class="isssec"><b>Changes from plan</b>'+devHtml+'</div>';
+  body.querySelectorAll('.issrow,.devlabel').forEach(b=>b.addEventListener('click',()=>{
     const key=b.dataset.key;
     if(key && byKey[key]){ selectNode(key); if(nodeEl[key]) nodeEl[key].scrollIntoView({block:'center',inline:'center'}); return; }
     const col=b.dataset.col;
-    if(col!==''){ const h=colsBar.children[+col]; if(h) h.scrollIntoView({block:'center',inline:'center'}); }
+    if(col!==''&&col!=null){ const h=colsBar.children[+col]; if(h) h.scrollIntoView({block:'center',inline:'center'}); }
   }));
-  body.querySelectorAll('.logundo').forEach(b=>b.addEventListener('click',e=>{ e.stopPropagation(); undoLogEntry(+b.dataset.id); }));
+  body.querySelectorAll('.logundo').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const key=b.dataset.key, kind=b.dataset.kind;
+    if(kind==='move') commitMove(key, planCol(key));   // back on the plan
+    else removeCustomCourse(key);                       // add / retake
+  }));
 }
 
 // ---- dock toggle: opening #issues closes #summary and vice versa (one dock, two tenants) ----
@@ -2109,6 +2169,44 @@ function retakeChain(key){                       // oldest -> newest, including 
   while(retakeNext[c] && g++<16){ c=retakeNext[c]; out.push(c); }   // g<16: corrupt-Sheet cycle guard
   return out;
 }
+
+// ===========================================================================
+// ==== WITHDRAWN / EDGE TRANSFER ====
+// DATA.edges is the immutable curriculum graph and stays untouched (same as DATA.nodes).
+// planEdges() is the single derived view every consumer reads instead: each endpoint
+// re-pointed to the newest attempt in ITS OWN re-take chain (retakeChain's last element --
+// a course with no re-take maps to itself). That one remap gives the adjacency map, the
+// slot ordering, the wire draw pass and the planIssues prereq rule the re-take's arrow and
+// column for free -- a superseded attempt ends up with no edges at all, which is exactly
+// why it reads correctly once greyed by .superseded below. `os`/`ot` carry the ORIGINAL
+// (pre-remap) endpoints alongside: blocking must be judged from there, not from the
+// remapped `s`, so an ungraded re-take still counts as "not yet passed" (see judgedGrade --
+// it only sees forward from whatever key you hand it, so the origin is the one key whose
+// chain always includes every attempt made so far).
+// Memoised exactly like issues(); _edgesCache is cleared right next to _issuesCache.
+// ===========================================================================
+let _edgesCache=null;
+function planEdges(){
+  return _edgesCache || (_edgesCache=DATA.edges.map(e=>({
+    s:retakeChain(e.s).slice(-1)[0], t:retakeChain(e.t).slice(-1)[0], co:e.co, os:e.s, ot:e.t
+  })));
+}
+// Direct dependents (unlocksOf, via planEdges) of any course that is blocking -- graded W
+// and not yet passed on any attempt in its chain. Re-applies the .blocked box/wire classes
+// from scratch every call, so it's safe to call after a grade edit alone (no rebuildMap).
+function applyBlockedMarks(){
+  PLAN.nodes.forEach(n=>{ const el=nodeEl[n.key]; if(el) el.classList.remove('blocked'); });
+  wireMeta.forEach(w=>{ if(w.el) w.el.classList.remove('blocked'); });
+  const pairs=new Set(), targets=new Set();
+  planEdges().forEach(e=>{
+    if(!byKey[e.s]||!byKey[e.t]) return;
+    if(!needsRetake(judgedGrade(e.os))) return;   // F and W both fail to satisfy a prerequisite
+    pairs.add(e.s+'|'+e.t); targets.add(e.t);
+  });
+  targets.forEach(k=>{ const el=nodeEl[k]; if(el) el.classList.add('blocked'); });
+  wireMeta.forEach(w=>{ if(pairs.has(w.s+'|'+w.t)) w.el.classList.add('blocked'); });
+}
+
 // display code for a key that might be a curriculum course or another custom/re-take row
 function origKeyShort(k){
   const d=DATA.nodes.find(x=>x.key===k); if(d) return d.short;
@@ -2138,8 +2236,6 @@ function createRetake(origKey, col){
   rebuildMap(true);
   const n=byKey[key];
   showMoveToast(esc(o.short)+' re-take added &rarr; '+esc(n?PLAN.sems[n.col].label:'?')+'.', []);
-  logMove({kind:'retake', key, short:o.short, origKey, before:null, after:n?n.col:target,
-    afterLabel:n?PLAN.sems[n.col].label:'?', warnings:[]});
 }
 // ---- dialog: "Re-take of X" semester picker, pre-pointed at the default target (one tap
 // confirms). If this exact attempt already has a re-take, offer to remove it or jump to it
@@ -2555,6 +2651,7 @@ function repaintNodes(){
     el.classList.toggle('starred', !!stars[n.key]);
     el.classList.toggle('hasnote', !!(notes[n.key]&&notes[n.key].trim()));
     el.classList.toggle('moved', moves[n.key]!=null);   // TASK 3A: dashed border = off the published plan
+    el.classList.toggle('superseded', !!retakeNext[n.key]);   // WITHDRAWN: a newer attempt exists -- grey this one, it's no longer the live record
     if(isElec(n)){
       const ec=el.querySelector('.ecode'), en=el.querySelector('.ename');
       // never overwrite the field the student is typing into (400ms sync debounce)
@@ -2562,6 +2659,7 @@ function repaintNodes(){
       if(en && en!==document.activeElement) en.value=elecName(n);
     }
   });
+  applyBlockedMarks();   // WITHDRAWN: direct dependents of a still-withdrawn prerequisite + their wire
   updateCounts(); computeSummary();
 }
 function rehydrate(){
@@ -2658,7 +2756,6 @@ function finishAuth(){
   // now-known track and do a full relayout, not just the repaint path.
   reconcileSems();      // EXTRA YEARS: raise the ceiling to the real floor before the first render
   sanitizeRetakeLinks(); // RETAKE: drop any corrupt retakeOf cycle before the first render
-  loadMoveLog();         // RECAP: this student's session history, if this tab already made any
   updateTrackUI(); rebuildMap(true);   // rebuildMap re-derives PLAN from the loaded track
   rehydrate(); loginEl.classList.add('hide');
 }
@@ -2720,7 +2817,7 @@ if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v20';
+const APP_BUILD='v23';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
