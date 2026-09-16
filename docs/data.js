@@ -68,5 +68,21 @@ window.API = {
   // removes a student-added course
   delCustom(student_id, course_key) {
     return apiPost({ action: "setCustom", student_id, course_key, remove: true });
+  },
+
+  // ADMIN DASHBOARD — read one whole tab. The backend already exposes this (doGet ?sheet=),
+  // strips the password column from `students`, and needs no new action, so the dashboard is
+  // built entirely out of reads. Resolves to [] rather than throwing when the tab does not
+  // exist yet: the Y5+ semester tabs are created on demand and are legitimately absent.
+  async sheet(name) {
+    if (!CONFIGURED) throw new Error("Set your Apps Script /exec URL in data.js (GSHEET_API)");
+    const r = await fetch(GSHEET_API + "?sheet=" + encodeURIComponent(name), { cache: "no-store" });
+    if (!r.ok) throw new Error("GET " + name + " " + r.status);
+    const out = await r.json();
+    if (out && out.error) {
+      if (/no sheet named/i.test(out.error)) return [];
+      throw new Error(out.error);
+    }
+    return Array.isArray(out) ? out : [];
   }
 };

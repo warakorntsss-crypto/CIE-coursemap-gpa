@@ -15,6 +15,11 @@
   --bg:#f4f7fb; --grid:rgba(59,110,180,.11); --grid2:rgba(59,110,180,.05);
   --ink:#1c2a3a; --ink-dim:#54657a; --line:rgba(28,42,58,.18);
   --cyan:#175ccc; --amber:#d97706; --amber-ink:#b45309; --panel-line:rgba(28,42,58,.15); --bar:60px;
+  /* PLAN-MODE. Teal is the one cool hue not already spoken for: the six category fills are
+     blue/green/orange/yellow/grey/violet, the four grade states green/red/grey/blue, and
+     starred + active buttons are amber. Colour is never the ONLY cue -- a planned column also
+     carries a dashed edge, a PLANNED tag and italic grades, so it survives a greyscale print. */
+  --plan:#0f766e; --plan-band:rgba(13,148,136,.085); --plan-edge:rgba(13,148,136,.45);
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
@@ -63,6 +68,93 @@ header{
 #cols .colhdr b{font-size:15px; font-weight:700; letter-spacing:.6px; color:#14233a; text-transform:uppercase}
 #cols .colhdr span{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--cyan)}
 #map{position:relative}
+/* PLAN-MODE: one band per contiguous run of planned columns. First child of #map, so it sits
+   under the wires and the boxes without needing a negative z-index (which would drop it behind
+   the page background). Pointer-events off -- it must never eat a click meant for a box. */
+.planband{position:absolute; top:0; pointer-events:none; background:var(--plan-band);
+  border-left:1px dashed var(--plan-edge); border-right:1px dashed var(--plan-edge); border-radius:10px;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact}
+.planband b{position:absolute; top:4px; left:50%; transform:translateX(-50%);
+  font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:1.2px; font-weight:600;
+  color:var(--plan); opacity:.65; text-transform:uppercase; white-space:nowrap}
+.node.planned{border-style:dashed; border-color:var(--plan-edge)}
+.node.planned .grade{font-style:italic; color:var(--plan); border-color:var(--plan-edge)}
+#cols .colhdr.planned{border-color:var(--plan-edge); background:linear-gradient(180deg,#f2fbfa,#e9f6f5)}
+#cols .colhdr.planned b{color:var(--plan)}
+#cols .colhdr.planned::after{content:"PLANNED"; position:absolute; bottom:-1px; left:50%; transform:translateX(-50%);
+  font-family:"JetBrains Mono",monospace; font-size:7.5px; letter-spacing:1px; color:var(--plan); opacity:.8}
+/* progress panel: the projected pair + the per-semester "plan" tag */
+.srow.plan b{color:var(--plan)}
+.srow.plan em{font-family:"JetBrains Mono",monospace; font-style:normal; font-size:9px; letter-spacing:.8px;
+  color:var(--plan); border:1px solid var(--plan-edge); border-radius:20px; padding:1px 5px; margin-left:5px}
+/* ---- ADMIN dashboard: full-screen overlay, same shape as #docview ---- */
+#adminBtn{display:none}
+/* view-as is read-only: hide every warm (mutating) tool and freeze the grade selects, so the
+   admin is never offered an edit that READONLY would silently swallow. */
+body.viewas .toolgrp.warm{display:none}
+body.viewas .node .grade,body.viewas .node .star,body.viewas .node .ecode,body.viewas .node .ename{pointer-events:none}
+body.viewas .node .grade{opacity:.9}
+body.viewas #scroll{bottom:42px}
+body.isadmin #adminBtn{display:block}
+#adminview{position:fixed; inset:0; z-index:80; background:#eef2f7; overflow:auto; display:none; padding:0 0 40px}
+#adminview.open{display:block}
+.adtools{position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+  padding:10px 16px; background:#fff; border-bottom:1px solid var(--panel-line)}
+.adtools h2{margin:0 auto 0 0; font-family:"Lexend",sans-serif; font-size:15px; letter-spacing:.4px; color:#14233a}
+.adwrap{max-width:1180px; margin:0 auto; padding:16px}
+.adtiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px}
+.adtile{background:#fff; border:1px solid var(--panel-line); border-radius:10px; padding:12px 14px}
+.adtile b{display:block; font-family:"Lexend",sans-serif; font-size:24px; line-height:1.15; color:#14233a}
+.adtile span{font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:.7px; color:var(--ink-dim); text-transform:uppercase}
+.adtile i{font-style:normal; font-size:11px; color:var(--ink-dim)}
+.adcard{background:#fff; border:1px solid var(--panel-line); border-radius:10px; padding:14px 16px; margin-bottom:14px}
+.adcard h3{margin:0 0 10px; font-family:"Lexend",sans-serif; font-size:13px; text-transform:uppercase;
+  letter-spacing:.6px; color:#14233a}
+.adgrid2{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.adbar{display:flex; align-items:center; gap:9px; margin:5px 0; font-family:"JetBrains Mono",monospace; font-size:11px; cursor:pointer}
+.adbar span{width:74px; color:var(--ink-dim); flex:0 0 auto}
+.adbar .bar{height:15px; border-radius:4px; background:var(--cyan); opacity:.82; min-width:2px}
+.adbar.low .bar{background:#d05c5c}
+.adbar.on span{color:var(--ink); font-weight:600}
+.adbar b{color:var(--ink)}
+.adreq{display:flex; justify-content:space-between; gap:10px; font-family:"JetBrains Mono",monospace;
+  font-size:11px; padding:3px 0; border-bottom:1px solid #eef2f7}
+.adreq b{color:#b3261e}
+.adtable{width:100%; border-collapse:collapse; background:#fff}
+.adtable th,.adtable td{border-bottom:1px solid #e6ecf3; padding:6px 8px; font-size:11.5px; text-align:left; white-space:nowrap}
+.adtable th{position:sticky; top:52px; background:#f6f8fb; font-family:"JetBrains Mono",monospace; font-size:10px;
+  letter-spacing:.6px; text-transform:uppercase; color:#44566b; cursor:pointer; user-select:none; z-index:4}
+.adtable th.sorted{color:var(--cyan)}
+.adtable td.c{text-align:center}
+.adtable tbody tr{cursor:pointer}
+.adtable tbody tr:hover{background:#f2f7fd}
+.adtable .ok{color:#1e7a2e; font-weight:700}
+.adtable .no{color:#b3261e}
+.adtable .warn{color:var(--amber-ink); font-weight:600}
+.adempty{padding:24px; text-align:center; color:var(--ink-dim); font-size:12.5px}
+/* read-only drill-down bar */
+#viewbar{position:fixed; left:0; right:0; bottom:0; z-index:70; display:none;
+  align-items:center; gap:12px; flex-wrap:wrap; justify-content:center;
+  padding:9px 14px calc(9px + env(safe-area-inset-bottom,0px));
+  background:#14233a; color:#fff; font-family:"JetBrains Mono",monospace; font-size:11.5px}
+#viewbar.open{display:flex}
+#viewbar b{color:#ffd68a}
+#viewbar .btn{background:transparent; color:#fff; border-color:rgba(255,255,255,.4)}
+#viewbar .btn:hover{border-color:#fff; color:#fff}
+@media print{ #adminview,#viewbar{display:none !important} }
+@media (max-width:720px){ .adgrid2{grid-template-columns:1fr} .adtable th{top:0} }
+.planfoot{font-family:"JetBrains Mono",monospace; font-size:10px; line-height:1.5; color:var(--ink-dim); margin-top:7px}
+/* plan-mode dialog: the semester checkbox grid */
+#planDlg{position:fixed; inset:0; z-index:90; display:none; align-items:center; justify-content:center;
+  background:rgba(20,40,80,.55); padding:16px}
+#planDlg.open{display:flex}
+.plgrid{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:4px 0 2px}
+.plopt{display:flex; align-items:center; gap:8px; font-family:"JetBrains Mono",monospace; font-size:11.5px;
+  color:#44566b; background:#f6f9fd; border:1px solid var(--panel-line); border-radius:6px; padding:7px 9px; cursor:pointer}
+.plopt:hover{border-color:var(--plan-edge)}
+.plopt.on{background:#eefaf8; border-color:var(--plan-edge); color:var(--plan); font-weight:600}
+.plopt input{accent-color:var(--plan); margin:0}
+.plopt i{font-style:normal; margin-left:auto; font-size:9.5px; color:var(--amber-ink); opacity:.85}
 #wires{position:absolute; left:0; top:0; pointer-events:none; overflow:visible}
 .node{
   position:absolute; border-radius:8px; cursor:pointer;
@@ -224,6 +316,20 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .docsem td.c,.docsem th.c{text-align:center; width:62px}
 .docsem td.r{text-align:right; font-weight:600}
 .docsem tfoot td{background:#f6f8fb; font-weight:700}
+/* PLAN-MODE in the printed report. print-color-adjust keeps the tint when the advisor prints;
+   the dashed border, the italic grade and the "(planned)" caption keep it readable when they
+   print greyscale, which is the common case. */
+.docsem.planned caption{background:#e9f6f5; border-color:var(--plan-edge); color:var(--plan)}
+.docsem.planned td,.docsem.planned th{border-color:#b9dbd7}
+.docsem.planned tbody td{background:var(--plan-band); font-style:italic}
+.docsem.planned tfoot td{background:#eefaf8; color:var(--plan)}
+.docsem.planned,.cyhdr.planned,.cyrow.planned{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+.cyhdr.planned{background:#e9f6f5; color:var(--plan)}
+.cyrow.planned{background:var(--plan-band); font-style:italic}
+.planlegend{font-size:11px; color:var(--plan); border:1px dashed var(--plan-edge); border-radius:6px;
+  padding:5px 9px; margin:0 0 12px; background:var(--plan-band);
+  -webkit-print-color-adjust:exact; print-color-adjust:exact}
+.srow2.proj span,.srow2.proj b{color:var(--plan)}
 .docsummary{border:2px solid #16202b; border-radius:6px; padding:12px 16px; margin:18px 0 14px; break-inside:avoid}
 .docsummary h3{margin:0 0 8px; font-family:"Lexend",sans-serif; text-transform:uppercase; letter-spacing:.6px; font-size:15px}
 .srow2{display:flex; justify-content:space-between; align-items:baseline; padding:4px 0; border-top:1px solid #e0e6ee; font-size:13px}
@@ -584,6 +690,7 @@ body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bo
           <option value="regular">Plan: Regular</option>
           <option value="coop">Plan: Co-op</option>
         </select>
+        <button class="btn" id="planModeBtn" title="Mark semesters you have not taken yet — their grades count as expected, not earned">&#9707; plan-mode</button>
       </div>
       <!-- Edit: warm, changes the student's plan -->
       <div class="toolgrp edit warm">
@@ -596,6 +703,7 @@ body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bo
         <button class="btn" id="sumBtn">▣ progress</button>
         <button class="btn" id="issuesBtn">⚠ checks<span class="issbadge" id="issuesBadge"></span></button>
         <button class="btn" id="pdfBtn">↓ save pdf</button>
+        <button class="btn" id="adminBtn" title="Department dashboard — GPA, plan adherence, internship &amp; co-op eligibility">&#9636; admin</button>
       </div>
       <span class="counts" id="counts"></span>
       <span id="whoami"></span>
@@ -624,6 +732,9 @@ body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bo
 </div>
 
 <div id="trackDlg"></div>
+<div id="planDlg"></div>
+<div id="adminview"></div>
+<div id="viewbar"></div>
 
 <div id="mvDlg"></div>
 <div id="mvToast"></div>
@@ -703,7 +814,7 @@ const elec   = {};      // {course_key: {code, name}}  elective code/name overri
 const stu    = {};      // {name, id}  shown on the PDF
 let advComment = "";    // academic advisor's comment (PDF)
 const cacheKey = b => b + ":" + (CURRENT ? CURRENT.student_id : "_");
-const writeCache = () => { try {
+const writeCache = () => { if(READONLY) return; try {
   localStorage.setItem(cacheKey("cie_stars"),  JSON.stringify(stars));
   localStorage.setItem(cacheKey("cie_notes"),  JSON.stringify(notes));
   localStorage.setItem(cacheKey("cie_grades"), JSON.stringify(grades));
@@ -712,6 +823,7 @@ const writeCache = () => { try {
   localStorage.setItem(cacheKey("cie_moves"),  JSON.stringify(moves));   // TASK 3A
   localStorage.setItem(cacheKey("cie_custom"), JSON.stringify(customs)); // TASK 3B
   localStorage.setItem(cacheKey("cie_xsems"),  String(extraSems));       // EXTRA YEARS
+  localStorage.setItem(cacheKey("cie_plan"),   planSemsStr());           // PLAN-MODE
 } catch (e) {} };
 // save* keep the old names/call-sites; now they just refresh the local cache.
 // The Sheet write happens via syncCourse(key), called right after each save*.
@@ -737,6 +849,12 @@ function clearObj(o){ for(const k in o) delete o[k]; return o; }   // wipe in pl
 //  student - but edges are filtered to endpoints that exist in PLAN.)
 // ===========================================================================
 let track='regular';   // 'regular' | 'coop'     -- TASK 2 (track swap) fills this in
+// PLAN-MODE: the semester columns the student has marked as *planned* rather than already
+// taken. A Set of column indexes, persisted as the comma-separated `plan_sems` scalar on the
+// students row (same shape of state as extraSems -- a property of the student, not of a course).
+// Indexes are safe to store: extra years only ever append, and a track swap changes what is IN
+// a column, never how many there are.
+let plannedSems=new Set();
 const moves={};        // {course_key: col}      -- TASK 3 (drag-to-move) fills this in
 const customs={};      // {course_key: node} student-added courses -- TASK 3 fills this in
                        // (keyed, not an array: it mirrors one backend row per course_key)
@@ -971,18 +1089,18 @@ function paintNodeStatic(el,n){
 //  it tears its own output down first and preserves the user's view state.
 //  relayout: true = re-run the barycenter sweeps, false = keep the current rows.
 // ===========================================================================
-function rebuildMap(relayout){
-  if(relayout===undefined) relayout=true;
+// ---- derivePlan(): everything rebuildMap() works out BEFORE it touches the DOM. Split out
+// because it is the whole computation layer -- PLAN, byKey, retakeNext, NCOL, TOTAL_CR and the
+// two memo caches -- and gpaData/majorGpa/evalTrack/planDeviations/planIssues all read it
+// through module globals. withStudentState() (see ADMIN below) re-derives it for one student at
+// a time so those five functions can score the whole cohort without a second implementation and
+// without rendering anything. rebuildMap() calls it first and then renders, exactly as before. ----
+function derivePlan(){
   // Re-derive the plan HERE, so no caller can forget to. track/moves/customs are the only
   // inputs; every one of them changes what planNodes() returns.
   PLAN=planNodes();
   _issuesCache=null;   // RECAP: PLAN just changed, so the memoised issue list is stale
   _edgesCache=null;    // WITHDRAWN: ditto for the retake-remapped edge list -- see planEdges()
-  // ---- remember view state ----
-  const keepL=scroll.scrollLeft, keepT=scroll.scrollTop;
-  const keepPinned=pinned, keepPanel=curPanel;
-
-  // ---- derive from PLAN ----
   clearObj(byKey); PLAN.nodes.forEach(n=>byKey[n.key]=n);
   // RETAKE: rebuilt right after byKey so retakeChain/judgedGrade/evalTrack/applyFilters
   // later in this same render pass see the fresh link, not a stale one from before this move.
@@ -990,6 +1108,60 @@ function rebuildMap(relayout){
   PLAN.nodes.forEach(n=>{ if(n.retakeOf) retakeNext[n.retakeOf]=n.key; });
   NCOL=PLAN.sems.length;
   TOTAL_CR=PLAN.sems.reduce((s,x)=>s+x.cr,0);
+}
+
+// ===========================================================================
+//  ==== PER-STUDENT STATE SWAP (ADMIN) ====
+//  gpaData(), majorGpa(), evalTrack(), planDeviations() and planIssues() are exactly the
+//  numbers the admin dashboard needs, and all five are already correct -- but each reads the
+//  logged-in student out of module globals. Rather than reimplement them per student (two
+//  implementations of a GPA rule is one too many; the copy drifts and the dashboard starts
+//  lying quietly), swap the globals, re-derive, score, and put everything back.
+//
+//  The restore sits in a `finally` on purpose: one throw part-way through a cohort loop would
+//  otherwise strand the logged-in student's globals pointing at somebody else's transcript.
+// ===========================================================================
+function captureState(){
+  return { grades:Object.assign({},grades), stars:Object.assign({},stars),
+           notes:Object.assign({},notes),   elec:Object.assign({},elec),
+           moves:Object.assign({},moves),   customs:Object.assign({},customs),
+           track, extraSems, plannedSems:new Set(plannedSems),
+           advComment, name:stu.name, id:stu.id };
+}
+function applyState(st){
+  st=st||{};
+  clearObj(grades); Object.assign(grades, st.grades||{});
+  clearObj(stars);  Object.assign(stars,  st.stars||{});
+  clearObj(notes);  Object.assign(notes,  st.notes||{});
+  clearObj(elec);   Object.assign(elec,   st.elec||{});
+  clearObj(moves);  Object.assign(moves,  st.moves||{});
+  clearObj(customs);Object.assign(customs,st.customs||{});
+  track      = validTrack(st.track);
+  extraSems  = (isFinite(st.extraSems) && st.extraSems>=0) ? Math.min(st.extraSems, MAX_EXTRA_SEMS) : 0;
+  plannedSems= (st.plannedSems instanceof Set) ? new Set(st.plannedSems) : parsePlanSems(st.plannedSems);
+  advComment = st.advComment||'';
+  stu.name   = st.name||''; stu.id = st.id||'';
+}
+function withStudentState(st, fn){
+  const keep=captureState();
+  try{
+    applyState(st);
+    reconcileSems();    // EXTRA YEARS: the stored scalar may lag what this student's own data needs
+    derivePlan();
+    return fn();
+  } finally {
+    applyState(keep);
+    derivePlan();
+  }
+}
+function rebuildMap(relayout){
+  if(relayout===undefined) relayout=true;
+  derivePlan();
+  // ---- remember view state ----
+  const keepL=scroll.scrollLeft, keepT=scroll.scrollTop;
+  const keepPinned=pinned, keepPanel=curPanel;
+
+  // ---- derive from PLAN ----
   const bc=document.getElementById('brandCr'); if(bc) bc.textContent=TOTAL_CR;
 
   // adjacency (edges from planEdges() -- WITHDRAWN: pre-pointed to each endpoint's newest
@@ -1014,8 +1186,11 @@ function rebuildMap(relayout){
   PLAN.sems.forEach((s,i)=>{
     const h=document.createElement('div'); h.className='colhdr';
     h.style.left=(PAD+i*COL_W)+"px"; h.style.width=BOX_W+"px";
-    h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>'; colsBar.appendChild(h);
+    h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>';
+    h.classList.toggle('planned', isPlannedCol(i));   // PLAN-MODE
+    colsBar.appendChild(h);
   });
+  renderPlanBands();   // PLAN-MODE: needs mapH + the column geometry set just above
 
   // ---- nodes: keyed diff. Survivors keep their DOM, classes, listeners and any
   //      in-progress typing; only new keys are built and only extinct keys removed.
@@ -1025,6 +1200,7 @@ function rebuildMap(relayout){
     let el=nodeEl[n.key];
     if(!el){ el=createNodeEl(n); map.appendChild(el); nodeEl[n.key]=el; }
     else paintNodeStatic(el,n);
+    el.classList.toggle('planned', isPlannedCol(n.col));   // PLAN-MODE
     el.style.left=pos[n.key].x+"px"; el.style.top=pos[n.key].y+"px";
   });
   Object.keys(nodeEl).forEach(k=>{ if(!live[k]){ nodeEl[k].remove(); delete nodeEl[k]; } });
@@ -1219,8 +1395,17 @@ function needsRetake(g){ return g==='F' || g==='W'; }   // F or W can be re-take
 // build (combineAttempts only continues a chain after F/W, so the best graded attempt is
 // always also the last one there) -- it only differs on an actual re-take, by design, and
 // never leaves a student worse off for having re-taken a course.
+// ---- PLAN-MODE seam. A grade sitting in a planned semester is an INTENTION, not a result, so
+// everything that judges what a student has actually achieved must read it as ungraded. This is
+// the one chokepoint: allAttempts() feeds judgedGrade(), which is read only by the eligibility
+// check and the prereq/blocked rules -- never by the box painter -- so the student still sees
+// the grade they typed while no rule is ever satisfied by a grade they merely expect to get. ----
+const isPlannedCol = c   => plannedSems.has(c);
+const isPlannedKey = key => { const n=byKey[key]; return !!n && isPlannedCol(n.col); };
+const actualGrade  = key => isPlannedKey(key) ? '' : grades[key];
+const hasPlan      = ()  => plannedSems.size>0;
 function allAttempts(key){ const out=[];
-  retakeChain(key).forEach(k=>{ const g=grades[k]; if(g) String(g).split('>').forEach(p=>out.push(p.trim())); });
+  retakeChain(key).forEach(k=>{ const g=actualGrade(k); if(g) String(g).split('>').forEach(p=>out.push(p.trim())); });
   return out; }
 function judgedGrade(key){          // best graded attempt, else most recent of any kind
   const a=allAttempts(key); let best=null;
@@ -1291,27 +1476,37 @@ function setGrade(key,g){
   _issuesCache=null; applyBlockedMarks(); renderIssues();
 }
 // per-semester GPA data, shared by the on-screen panel and the PDF document
+// PLAN-MODE: one pass, two sets of totals. `total`/`tDen`/`cred` stay ACTUAL (earned only) so
+// every existing caller keeps its old meaning; `proj*` additionally counts the planned columns.
+// A row carries `planned` so the panel and the PDF can label its GPA "expected".
 function gpaData(){
-  const rows=[]; let tNum=0,tDen=0,cred=0;
+  const rows=[]; let tNum=0,tDen=0,cred=0, pNum=0,pDen=0,pCred=0;
   for(let c=0;c<PLAN.sems.length;c++){
+    const planned=isPlannedCol(c);
     let num=0,den=0;
     PLAN.nodes.filter(n=>n.col===c).forEach(n=>{
-      const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den; cred+=r.cred;
+      const r=nodeGpa(grades[n.key], n.cr);          // as typed -- this row is what the student sees
+      num+=r.num; den+=r.den;
+      pNum+=r.num; pDen+=r.den; pCred+=r.cred;       // projected: everything counts
+      if(!planned){ cred+=r.cred; tNum+=r.num; tDen+=r.den; }   // actual: earned semesters only
     });
-    tNum+=num; tDen+=den;
-    rows.push({col:c, label:semLabel(c), gpa:den?(num/den).toFixed(2):'—', den});
+    rows.push({col:c, planned, label:semLabel(c), gpa:den?(num/den).toFixed(2):'—', den});
   }
-  return {rows, total:tDen?(tNum/tDen).toFixed(2):'—', tDen, cred};
+  return {rows, total:tDen?(tNum/tDen).toFixed(2):'—', tDen, cred,
+          proj:pDen?(pNum/pDen).toFixed(2):'—', projDen:pDen, projCred:pCred};
 }
 // Major GPA over the CE-department subjects only (isMajorGpa: cat 'major' + major
 // electives + the CE labs; 67 cr in the regular track). Same nodeGpa() helper as
 // gpaData(), so retake chains ("F>B"), S/CS credit-no-GPA and W/U/I/P behave identically.
 function majorGpa(){
-  let num=0,den=0,cred=0;
+  let num=0,den=0,cred=0, pNum=0,pDen=0;
   PLAN.nodes.filter(isMajorGpa).forEach(n=>{
-    const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den; cred+=r.cred;
+    const r=nodeGpa(grades[n.key], n.cr);
+    pNum+=r.num; pDen+=r.den;                                   // PLAN-MODE: projected
+    if(!isPlannedCol(n.col)){ num+=r.num; den+=r.den; cred+=r.cred; }
   });
-  return {gpa: den?(num/den).toFixed(2):'—', den, cred};
+  return {gpa: den?(num/den).toFixed(2):'—', den, cred,
+          proj: pDen?(pNum/pDen).toFixed(2):'—', projDen:pDen};
 }
 const summary=document.getElementById('summary');
 // RECAP PANEL: one dock, two tenants -- opening #summary closes #issues (closeIssues is
@@ -1324,11 +1519,20 @@ document.getElementById('sumBtn').addEventListener('click',()=>{
 document.getElementById('sumClose').addEventListener('click',()=>summary.classList.remove('open'));
 function computeSummary(){
   const d=gpaData(), m=majorGpa();
-  const rows=d.rows.map(r=>'<div class="srow"><span>'+r.label+'</span><b>'+r.gpa+'</b><i>'+r.den+' cr</i></div>').join('');
+  const rows=d.rows.map(r=>'<div class="srow'+(r.planned?' plan':'')+'"><span>'+r.label+
+    (r.planned?' <em>plan</em>':'')+'</span><b>'+r.gpa+'</b><i>'+r.den+' cr</i></div>').join('');
+  // PLAN-MODE: the projected pair only appears once a plan region exists, so a student who has
+  // never opened plan-mode sees exactly the panel they saw before.
+  const proj = hasPlan()
+    ? '<div class="srow total plan"><span>Projected GPA</span><b>'+d.proj+'</b><i>'+d.projDen+' cr</i></div>'+
+      '<div class="srow total plan"><span>Projected Major GPA</span><b>'+m.proj+'</b><i>'+m.projDen+' cr</i></div>'+
+      '<div class="planfoot">Projected includes the '+plannedSems.size+' planned semester'+
+        (plannedSems.size>1?'s':'')+' &mdash; those grades are expected, not yet earned.</div>'
+    : '';
   document.getElementById('sumBody').innerHTML=
     '<div class="sbig">'+d.cred+'<small> / '+TOTAL_CR+' credits studied</small></div>'+rows+
     '<div class="srow total"><span>Total GPA</span><b>'+d.total+'</b><i>'+d.tDen+' cr</i></div>'+
-    '<div class="srow total"><span>Major GPA</span><b>'+m.gpa+'</b><i>'+m.den+' cr</i></div>';
+    '<div class="srow total"><span>Major GPA</span><b>'+m.gpa+'</b><i>'+m.den+' cr</i></div>'+proj;
 }
 
 // ===========================================================================
@@ -1380,8 +1584,10 @@ function gradePass(g, min){
 function gpaThrough(maxCol){
   const last = (maxCol==null) ? PLAN.sems.length-1 : Math.min(maxCol, PLAN.sems.length-1);
   let num=0, den=0;
+  // PLAN-MODE: actualGrade, never grades -- a cumulative GPA that gates eligibility must not be
+  // lifted by grades the student only intends to earn.
   for(let c=0;c<=last;c++) PLAN.nodes.filter(n=>n.col===c).forEach(n=>{
-    const r=nodeGpa(grades[n.key], n.cr); num+=r.num; den+=r.den;
+    const r=nodeGpa(actualGrade(n.key), n.cr); num+=r.num; den+=r.den;
   });
   return {gpa: den?(num/den).toFixed(2):'—', den};
 }
@@ -1392,7 +1598,7 @@ function evalTrack(id){
     // (possibly withdrawn) grade -- a student who withdrew then successfully re-took must
     // read as eligible. Show every attempt in "got" so the row is auditable.
     const chain=retakeChain(r.key);
-    const got=chain.map(k=>grades[k]?String(grades[k]).replace(/>/g,' → '):null).filter(Boolean);
+    const got=chain.map(k=>{ const g=actualGrade(k); return g?String(g).replace(/>/g,' → '):null; }).filter(Boolean);
     return {code:r.code, key:r.key, title:r.title,
       need:(r.min==='D'?'A–D':'A–C'),
       got: got.length?got.join(' | '):'—',
@@ -1798,7 +2004,7 @@ function validCustomRow(r){
 const _cTimers={};
 function syncCustom(key){          // course definition -> the `custom` tab
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
   const n=customs[key]; if(!n) return;
   clearTimeout(_cTimers[key]);
   _cTimers[key]=setTimeout(()=>{
@@ -1809,7 +2015,7 @@ function syncCustom(key){          // course definition -> the `custom` tab
 }
 function syncDelCustom(key){       // remove the `custom` tab row
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
   clearTimeout(_cTimers[key]);
   API.delCustom(CURRENT.student_id, key)
     .catch(err=>{ console.warn("delCustom failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
@@ -1989,11 +2195,104 @@ function trimExtraSems(){
   if(next===extraSems) return;
   extraSems=next; syncSems();
 }
+// ---- PLAN-MODE persistence. parsePlanSems() is the guard on the way IN, from either source
+// (Sheet scalar or localStorage): anything non-numeric, negative or absurd is dropped rather
+// than allowed to paint a band over a column that does not exist. It deliberately does NOT
+// clamp to the current column count -- hydration order is not guaranteed and a plan on Y5 S1
+// must survive a load where extraSems has not been applied yet. ----
+function parsePlanSems(v){
+  const out=new Set();
+  String(v==null?'':v).split(',').forEach(part=>{
+    const n=parseInt(part,10);
+    if(isFinite(n) && n>=0 && n<DATA.sems.length+MAX_EXTRA_SEMS) out.add(n);
+  });
+  return out;
+}
+function planSemsStr(){ return Array.from(plannedSems).sort((a,b)=>a-b).join(','); }
+let _plTimer=null;
+function syncPlan(){              // PLAN-MODE: clone of syncSems -- plan_sems -> students row
+  if(!CURRENT) return;
+  writeCache();
+  if(OFFLINE || READONLY || !HAS_API()) return;
+  clearTimeout(_plTimer);
+  _plTimer=setTimeout(()=>{
+    API.setProfile(CURRENT.student_id, { plan_sems: planSemsStr() })
+      .catch(err=>console.warn("setProfile (plan_sems) failed:",err));
+  },500);
+}
+// ---- PLAN-MODE rendering. One band per CONTIGUOUS run of planned columns, so ticking
+// Y3 S2 and Y4 S2 but not Y4 S1 draws two bands rather than one that lies about the gap.
+// Inserted as the FIRST children of #map so they sit under the wires and the boxes: a negative
+// z-index would instead drop them behind the page background and vanish. The node diff is keyed
+// and never wipes #map, so the old bands are removed explicitly. ----
+function renderPlanBands(){
+  Array.prototype.slice.call(map.querySelectorAll('.planband')).forEach(b=>b.remove());
+  if(!plannedSems.size) return;
+  const cols=Array.from(plannedSems).filter(c=>c<NCOL).sort((a,b)=>a-b);
+  for(let i=0;i<cols.length;){
+    let j=i; while(j+1<cols.length && cols[j+1]===cols[j]+1) j++;   // extend the run
+    const c0=cols[i], span=cols[j]-cols[i]+1;
+    const b=document.createElement('div');
+    b.className='planband';
+    b.style.left  = (PAD + c0*COL_W - GUT/2)+'px';
+    b.style.width = ((span-1)*COL_W + BOX_W + GUT)+'px';
+    b.style.height= mapH+'px';
+    b.innerHTML='<b>planned</b>';
+    map.insertBefore(b, map.firstChild);
+    i=j+1;
+  }
+}
+// ---- the picker. Per-semester checkboxes rather than a from/to range, so a student can plan
+// Y4 S2 without claiming Y4 S1. A column that already holds grades is flagged but NOT blocked:
+// re-planning a semester you have partly taken is a legitimate thing to want. ----
+const planDlg=document.getElementById('planDlg');
+function closePlanDialog(){ planDlg.classList.remove('open'); planDlg.innerHTML=''; }
+function gradedInCol(c){ return PLAN.nodes.filter(n=>n.col===c && grades[n.key]).length; }
+function openPlanDialog(){
+  const draft=new Set(plannedSems);
+  const opts=[];
+  for(let c=0;c<totalSems();c++){
+    const g=gradedInCol(c);
+    opts.push('<label class="plopt'+(draft.has(c)?' on':'')+'" data-col="'+c+'">'+
+      '<input type="checkbox"'+(draft.has(c)?' checked':'')+'>'+esc(semLabelAt(c))+
+      (g?'<i>'+g+' graded</i>':'')+'</label>');
+  }
+  planDlg.innerHTML='<div class="tdlg-card"><h3>Plan-mode</h3>'+
+    '<p>Tick the semesters you have <b>not taken yet</b>. They are shaded on the map and in the '+
+    'printed report, and their grades count towards a separate <b>Projected GPA</b> &mdash; never '+
+    'towards your actual GPA or your internship / co-op eligibility.</p>'+
+    '<div class="plgrid">'+opts.join('')+'</div>'+
+    '<div class="tdlg-btns"><button class="btn" id="plClear">Clear all</button>'+
+    '<button class="btn" id="plCancel">Cancel</button>'+
+    '<button class="btn on" id="plOk">Apply</button></div></div>';
+  planDlg.classList.add('open');
+  planDlg.querySelectorAll('.plopt').forEach(l=>{
+    l.addEventListener('change',()=>{
+      const c=+l.dataset.col, on=l.querySelector('input').checked;
+      if(on) draft.add(c); else draft.delete(c);
+      l.classList.toggle('on',on);
+    });
+  });
+  document.getElementById('plClear').addEventListener('click',()=>{
+    draft.clear();
+    planDlg.querySelectorAll('.plopt').forEach(l=>{ l.querySelector('input').checked=false; l.classList.remove('on'); });
+  });
+  document.getElementById('plCancel').addEventListener('click',closePlanDialog);
+  document.getElementById('plOk').addEventListener('click',()=>{
+    closePlanDialog();
+    plannedSems=new Set(draft);
+    syncPlan();
+    _issuesCache=null;                 // eligibility + the checks list just changed meaning
+    rebuildMap(false);                 // bands, header tags and box outlines; keep the row order
+    repaintNodes(); updateTrackUI(); computeSummary(); renderIssues();
+  });
+}
+document.getElementById('planModeBtn').addEventListener('click',openPlanDialog);
 let _xsTimer=null;
 function syncSems(){              // EXTRA YEARS: clone of syncTrack -- extra_sems -> students row
   if(!CURRENT) return;
   writeCache();
-  if(OFFLINE || !HAS_API()) return;
+  if(OFFLINE || READONLY || !HAS_API()) return;
   clearTimeout(_xsTimer);
   _xsTimer=setTimeout(()=>{
     API.setProfile(CURRENT.student_id, { extra_sems: extraSems })
@@ -2323,6 +2622,15 @@ function docHead(today){
     '<div><label>Student ID:</label><input id="docID" value="'+esc(stu.id)+'"></div>'+
     '<div><label>Date:</label> '+today+'</div></div>';
 }
+// PLAN-MODE: printed only when a region exists, so an ordinary report is unchanged.
+function planLegend(){
+  if(!hasPlan()) return '';
+  const names=Array.from(plannedSems).filter(c=>c<PLAN.sems.length).sort((a,b)=>a-b)
+    .map(c=>esc(semLabelAt(c))).join(', ');
+  return '<div class="planlegend"><b>Planned semesters:</b> '+names+
+    ' &mdash; shaded below. Grades shown there are <b>expected</b>, not yet earned, and are '+
+    'excluded from the cumulative GPA and from internship / co-op eligibility.</div>';
+}
 function sigRow(){
   return '<div class="sigrow">'+
     '<div class="sigbox"><div class="sigline"></div><b>Student</b><span>Signature / Date</span></div>'+
@@ -2343,18 +2651,24 @@ function buildFull(today){
       return '<tr><td>'+codeCell+'</td><td>'+titleCell+'</td><td class="c">'+n.cr+'</td><td class="c">'+g+'</td></tr>';
     }).join('');
     const r=d.rows[c];
-    sems+='<table class="docsem"><caption>'+r.label+' &mdash; '+PLAN.sems[c].cr+' Credit</caption>'+
+    sems+='<table class="docsem'+(r.planned?' planned':'')+'"><caption>'+r.label+' &mdash; '+
+      PLAN.sems[c].cr+' Credit'+(r.planned?' &middot; planned':'')+'</caption>'+
       '<thead><tr><th>Code</th><th>Course Title</th><th class="c">Credit</th><th class="c">Grade</th></tr></thead>'+
       '<tbody>'+rowsHtml+'</tbody>'+
-      '<tfoot><tr><td colspan="2" class="r">Semester GPA</td><td class="c">'+r.den+'</td><td class="c">'+r.gpa+'</td></tr></tfoot>'+
+      '<tfoot><tr><td colspan="2" class="r">'+(r.planned?'Expected GPA':'Semester GPA')+'</td>'+
+        '<td class="c">'+r.den+'</td><td class="c">'+r.gpa+'</td></tr></tfoot>'+
       '</table>';
   }
   const m=majorGpa();
-  return docHead(today)+sems+
+  const proj = hasPlan()
+    ? '<div class="srow2 big proj"><span>Projected GPA (including planned semesters)</span><b>'+d.proj+'</b></div>'+
+      '<div class="srow2 big proj"><span>Projected Major GPA</span><b>'+m.proj+'</b></div>'
+    : '';
+  return docHead(today)+planLegend()+sems+
     '<div class="docsummary"><h3>Summary</h3>'+
       '<div class="srow2 big"><span>Total credits studied (passing grade A&ndash;D, S, CS)</span><b>'+d.cred+' / '+TOTAL_CR+'</b></div>'+
       '<div class="srow2 big"><span>Cumulative GPA</span><b>'+d.total+'</b></div>'+
-      '<div class="srow2 big"><span>Major GPA (civil engineering subjects)</span><b>'+m.gpa+'</b></div></div>'+
+      '<div class="srow2 big"><span>Major GPA (civil engineering subjects)</span><b>'+m.gpa+'</b></div>'+proj+'</div>'+
     '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
       '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
     sigRow();
@@ -2368,24 +2682,28 @@ function buildCompact(today){
   years.forEach(y=>{
     const yc=[]; for(let c=0;c<PLAN.sems.length;c++) if(yearOfCol(c)===y) yc.push(c);
     let num=0,den=0, body='';
+    let anyPlanned=false, allPlanned=true;
     yc.forEach(c=>{
-      body+='<div class="cyhdr">'+PLAN.sems[c].label+'</div>';
+      const planned=isPlannedCol(c);                     // PLAN-MODE
+      if(planned) anyPlanned=true; else allPlanned=false;
+      body+='<div class="cyhdr'+(planned?' planned':'')+'">'+PLAN.sems[c].label+(planned?' · plan':'')+'</div>';
       PLAN.nodes.filter(n=>n.col===c).forEach(n=>{
         const gv=grades[n.key], g=gv?String(gv).replace(/>/g,'→'):'-';
         const r=nodeGpa(gv, n.cr); num+=r.num; den+=r.den;
-        body+='<div class="cyrow"><span>'+(stars[n.key]?'★ ':'')+(n.retakeOf?'&#8635; ':'')+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
+        body+='<div class="cyrow'+(planned?' planned':'')+'"><span>'+(stars[n.key]?'★ ':'')+(n.retakeOf?'&#8635; ':'')+esc(codeFor(n))+'</span><b>'+g+'</b></div>';
       });
     });
     const ygpa=den?(num/den).toFixed(2):'—';
     cols+='<div class="cyear"><div class="cytitle">Year '+y+'</div>'+body+
-      '<div class="cygpa">Year GPA <b>'+ygpa+'</b></div></div>';
+      '<div class="cygpa">'+(allPlanned?'Expected':(anyPlanned?'Year GPA*':'Year GPA'))+' <b>'+ygpa+'</b></div></div>';
   });
   const m=majorGpa();
-  return docHead(today)+
+  return docHead(today)+planLegend()+
     '<div class="compactgrid">'+cols+'</div>'+
     '<div class="docsummary compact"><span><b>Credits studied:</b> '+d.cred+' / '+TOTAL_CR+
       ' &nbsp;&middot;&nbsp; <b>Cumulative GPA:</b> '+d.total+
-      ' &nbsp;&middot;&nbsp; <b>Major GPA:</b> '+m.gpa+'</span></div>'+
+      ' &nbsp;&middot;&nbsp; <b>Major GPA:</b> '+m.gpa+
+      (hasPlan()?' &nbsp;&middot;&nbsp; <b>Projected GPA:</b> '+d.proj:'')+'</span></div>'+
     '<div class="adv-comment"><div class="lbl">Academic Advisor&rsquo;s Comment</div>'+
       '<textarea id="docComment">'+esc(advComment)+'</textarea></div>'+
     sigRow();
@@ -2461,7 +2779,11 @@ document.getElementById('docPrint').addEventListener('click',()=>{
   if(INAPP){ const w=document.querySelector('.doc-warn'); if(w){ w.scrollIntoView({block:'center'}); w.animate?w.animate([{opacity:.4},{opacity:1}],{duration:500,iterations:2}):0; } }
   try{ window.print(); }catch(e){}
 });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape') docview.classList.remove('open'); });
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape') return;
+  docview.classList.remove('open');
+  if(typeof adminview!=='undefined' && adminview) adminview.classList.remove('open');
+});
 
 // ---- zoom (CSS zoom keeps sticky header working) ----
 let z=1;
@@ -2573,6 +2895,10 @@ fitBar();
 //  Falls back to a per-student localStorage cache when the backend is unreachable.
 // ===========================================================================
 let OFFLINE = false;            // true when running off the localStorage cache
+// ADMIN: true while an admin is looking at somebody else's map. Every sync* below and
+// writeCache() bail out on it, so a drill-down can never write to the Sheet -- nor to the
+// admin's own localStorage, which would otherwise be flattened with another student's data.
+let READONLY = false;
 const HAS_API = () => !!(window.API && API.configured);
 // Which SHEET TAB a grade is written to. This is the course's HOME semester in the base
 // curriculum -- deliberately NOT its current column. A course that a track swap or a student
@@ -2596,7 +2922,7 @@ function showBanner(msg){ const b=document.getElementById('banner'); if(!b)retur
 const _gTimers={}, _eTimers={};
 function syncGrade(key){          // grade -> the course's per-semester tab
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
   clearTimeout(_gTimers[key]);
   _gTimers[key]=setTimeout(()=>{
     API.setGrade(CURRENT.student_id, semOf(key), key, grades[key]||"")
@@ -2605,7 +2931,7 @@ function syncGrade(key){          // grade -> the course's per-semester tab
 }
 function syncExtra(key){          // star / note / elective overrides -> extras tab
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || !HAS_API()) return;
+  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
   const e=elec[key]||{};
   // TASK 3A: moved_col rides this same row. A CLEARED move must write "" (not be omitted),
   // otherwise the backend keeps the stale column and the move comes back on next login.
@@ -2621,7 +2947,7 @@ let _pTimer=null;
 function syncStudent(){           // student name + advisor comment -> students row
   if(!CURRENT) return;
   writeCache(); try{ localStorage.setItem("cie_adv:"+CURRENT.student_id, advComment); }catch(e){}
-  if(OFFLINE || !HAS_API()) return;
+  if(OFFLINE || READONLY || !HAS_API()) return;
   clearTimeout(_pTimer);
   _pTimer=setTimeout(()=>{
     API.setProfile(CURRENT.student_id, { name: stu.name||"", advisor_comment: advComment||"" })
@@ -2632,7 +2958,7 @@ let _tTimer=null;
 function syncTrack(){             // TASK 2: active curriculum track -> students row
   if(!CURRENT) return;
   writeCache();
-  if(OFFLINE || !HAS_API()) return;
+  if(OFFLINE || READONLY || !HAS_API()) return;
   clearTimeout(_tTimer);
   _tTimer=setTimeout(()=>{
     API.setProfile(CURRENT.student_id, { track })
@@ -2676,6 +3002,7 @@ function rehydrate(){
 function applyPayload(p){
   [grades,stars,notes,elec,moves,customs].forEach(o=>{ for(const k in o) delete o[k]; });
   extraSems=0;   // EXTRA YEARS: a scalar, not covered by the object-clear loop above
+  plannedSems=new Set();   // PLAN-MODE: ditto
   OFFLINE=false; showBanner("");
   if(p && p.grades) Object.keys(p.grades).forEach(k=>{ if(p.grades[k]!=="") grades[k]=String(p.grades[k]); });
   if(p && p.extras) p.extras.forEach(r=>{
@@ -2701,6 +3028,7 @@ function applyPayload(p){
   // by finishAuth, before the first rebuild) then raises this to whatever the student's own
   // moves/customs require, so a missing or stale scalar never drops a course.
   { const xs=parseInt(prof.extra_sems,10); extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
+  plannedSems=parsePlanSems(prof.plan_sems);   // PLAN-MODE: same corruption-guard as extra_sems
   recoverOrphanCustoms((p&&p.customs&&p.customs.length)||0);   // RECOVERY: see below
 }
 
@@ -2721,7 +3049,7 @@ function applyPayload(p){
 // and must already see the recovered courses -- while the writes go out in the background, one at
 // a time rather than as a burst, to stay clear of the script lock. ----
 function recoverOrphanCustoms(serverCount){
-  if(!CURRENT || !HAS_API() || OFFLINE) return;
+  if(!CURRENT || !HAS_API() || OFFLINE || READONLY) return;
   let done, raw;
   try{ done=localStorage.getItem(cacheKey("cie_custfix")); raw=localStorage.getItem(cacheKey("cie_custom")); }
   catch(e){ return; }                       // no storage -> nothing cached to recover from anyway
@@ -2767,6 +3095,7 @@ function loadOfflineCache(sid){
   stu.id=sid; if(!stu.name) stu.name=sid;
   track = validTrack((function(){ try{ return localStorage.getItem("cie_track:"+sid); }catch(e){ return null; } })());
   // EXTRA YEARS: same corruption-guard fallback as applyPayload's prof.extra_sems.
+  plannedSems=parsePlanSems((function(){ try{ return localStorage.getItem("cie_plan:"+sid); }catch(e){ return null; } })());   // PLAN-MODE
   { const xs=parseInt((function(){ try{ return localStorage.getItem("cie_xsems:"+sid); }catch(e){ return null; } })(),10);
     extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
 }
@@ -2803,6 +3132,10 @@ function finishAuth(){
   // now-known track and do a full relayout, not just the repaint path.
   reconcileSems();      // EXTRA YEARS: raise the ceiling to the real floor before the first render
   sanitizeRetakeLinks(); // RETAKE: drop any corrupt retakeOf cycle before the first render
+  // ADMIN: the button is display:none until this class lands, so a student never has it in
+  // reach. The data behind it was already world-readable through ?sheet= -- this gate is about
+  // the UI, not about secrecy, and the dashboard adds no new exposure.
+  document.body.classList.toggle('isadmin', !!(CURRENT && CURRENT.role==='admin'));
   updateTrackUI(); rebuildMap(true);   // rebuildMap re-derives PLAN from the loaded track
   rehydrate(); loginEl.classList.add('hide');
 }
@@ -2861,10 +3194,274 @@ if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
   setTimeout(()=>{ const f=document.getElementById('loginId'); if(f) f.focus(); }, 50);
 }
 
+// ===========================================================================
+//  ==== ADMIN DASHBOARD ====
+//  Cohort view for role=admin. Every number here comes from the SAME functions the student
+//  view uses -- gpaData, majorGpa, planDeviations, planIssues, evalTrack -- run once per
+//  student through withStudentState(). Nothing about a GPA or an eligibility rule is
+//  reimplemented here; if a rule changes, it changes in one place and this follows.
+//
+//  It is built entirely out of reads. doGet already serves whole tabs and strips the password
+//  column, so no new backend action was needed. Access is a CLIENT-side gate on the role: the
+//  underlying ?sheet= reads were already open to anyone holding the /exec URL, and this does
+//  not change that either way.
+// ===========================================================================
+const ADMIN_BASE_TABS=["Y1S1","Y1S2","Y2S1","Y2S2","Y3S1","Y3S2","Summer","Y4S1","Y4S2"];
+const adminview=document.getElementById('adminview'), viewbar=document.getElementById('viewbar');
+let COHORT=null, adSort={key:'gpaN', dir:-1}, adFilter='', adBucket=null, adminHome=null;
+const GPA_BUCKETS=[{lo:0,hi:2,label:'< 2.00',low:true},{lo:2,hi:2.5,label:'2.00-2.49'},
+  {lo:2.5,hi:3,label:'2.50-2.99'},{lo:3,hi:3.5,label:'3.00-3.49'},{lo:3.5,hi:99,label:'3.50 +'}];
+
+// the semester tab name for the k-th column past the published plan -- the same string semOf()
+// derives from semLabelAt(), kept in one expression so the two cannot drift
+function extraTabName(k){ return 'Y'+(5+Math.floor(k/2))+'S'+(k%2+1); }
+
+async function fetchCohort(){
+  const [students, extras, customRows] = await Promise.all([
+    API.sheet('students'), API.sheet('extras'), API.sheet('custom')]);
+  // Y5+ tabs exist only once somebody grew their plan; ask for as many as the roster claims.
+  let maxX=0;
+  students.forEach(r=>{ const n=parseInt(r.extra_sems,10); if(isFinite(n)&&n>maxX) maxX=Math.min(n,MAX_EXTRA_SEMS); });
+  const tabs=ADMIN_BASE_TABS.slice();
+  for(let k=0;k<maxX;k++) tabs.push(extraTabName(k));
+  const semRows = await Promise.all(tabs.map(t=>API.sheet(t).catch(()=>[])));
+
+  const by={};
+  const get=id=>by[id]||(by[id]={grades:{},stars:{},notes:{},elec:{},moves:{},customs:{}});
+  semRows.forEach(rows=>rows.forEach(r=>{
+    const id=String(r.student_id||'').trim(); if(!id) return;
+    const st=get(id);
+    Object.keys(r).forEach(k=>{
+      if(k==='student_id') return;
+      const v=String(r[k]==null?'':r[k]).trim();
+      if(v) st.grades[k]=v;
+    });
+  }));
+  // hydrated through the SAME validators as a login payload, so a malformed row is skipped
+  // here exactly as it would be for the student themselves
+  extras.forEach(r=>{
+    const id=String(r.student_id||'').trim(), k=String(r.course_key||'').trim();
+    if(!id||!k) return;
+    const st=get(id);
+    if(String(r.starred).toUpperCase()==='TRUE') st.stars[k]=1;
+    if(r.note) st.notes[k]=String(r.note);
+    if(r.elec_code||r.elec_name){ st.elec[k]={};
+      if(r.elec_code) st.elec[k].code=String(r.elec_code);
+      if(r.elec_name) st.elec[k].name=String(r.elec_name); }
+    const mc=mvValidColRaw(r.moved_col); if(mc!=null) st.moves[k]=mc;
+  });
+  customRows.forEach(r=>{
+    const id=String(r.student_id||'').trim(); if(!id) return;
+    const c=validCustomRow(r); if(c) get(id).customs[c.key]=c;
+  });
+
+  return students.map(r=>{
+    const id=String(r.student_id||'').trim(); if(!id) return null;
+    const st=get(id);
+    st.track=r.track; st.plannedSems=parsePlanSems(r.plan_sems);
+    st.extraSems=parseInt(r.extra_sems,10)||0;
+    st.advComment=String(r.advisor_comment||''); st.name=String(r.name||''); st.id=id;
+    return {id, name:String(r.name||''), advisor:String(r.advisor||''),
+            role:String(r.role||'student'), state:st};
+  }).filter(Boolean);
+}
+
+// one student's numbers, computed by the student-view functions themselves
+function scoreStudent(s){
+  return withStudentState(s.state, ()=>{
+    const d=gpaData(), mj=majorGpa();
+    const pack=id=>{ const v=evalTrack(id);
+      return {eligible:v.eligible, gpaOk:v.gpaOk, passed:v.passed, total:v.total,
+              fails:v.rows.filter(r=>!r.ok).map(r=>r.key)}; };
+    return {
+      gpa:d.total, gpaN:(d.tDen?parseFloat(d.total):null), cred:d.cred,
+      major:mj.gpa, proj:d.proj, planned:plannedSems.size, track:track,
+      devs:planDeviations().length, issues:planIssues().length,
+      intern:pack('intern'), coop:pack('coop')
+    };
+  });
+}
+// A Year 1 student has not failed the Year 3 internship conditions -- they have not reached
+// them. Split the roster three ways so the "not eligible" count means something.
+function trackStatus(s, id){
+  const t=TRACKS[id], due=(t.deadline&&t.deadline.year)||3;
+  const y=studentYear(s.id);
+  if(s.m[id].eligible) return 'ok';
+  return (y.known && y.year<due) ? 'early' : 'no';
+}
+
+function adRows(){
+  const q=adFilter.trim().toLowerCase();
+  let rows=COHORT.filter(s=>s.role!=='admin');
+  if(q) rows=rows.filter(s=>(s.id+' '+s.name+' '+s.advisor).toLowerCase().indexOf(q)>=0);
+  if(adBucket!=null){ const b=GPA_BUCKETS[adBucket];
+    rows=rows.filter(s=>s.m.gpaN!=null && s.m.gpaN>=b.lo && s.m.gpaN<b.hi); }
+  const k=adSort.key, dir=adSort.dir;
+  return rows.slice().sort((a,b)=>{
+    let x,y;
+    if(k==='name'||k==='advisor'||k==='id'){ return dir*String(a[k]||'').localeCompare(String(b[k]||'')); }
+    if(k==='intern'||k==='coop'){ x=a.m[k].eligible?1:0; y=b.m[k].eligible?1:0; }
+    else if(k==='year'){ x=(studentYear(a.id).year||0); y=(studentYear(b.id).year||0); }
+    else if(k==='major'){ x=parseFloat(a.m.major)||-1; y=parseFloat(b.m.major)||-1; }
+    else { x=a.m[k]; y=b.m[k]; }
+    if(x==null) x=-1;
+    if(y==null) y=-1;
+    return dir*((x>y)-(x<y));
+  });
+}
+
+function renderAdmin(){
+  const list=COHORT.filter(s=>s.role!=='admin');
+  const n=list.length;
+  const graded=list.filter(s=>s.m.gpaN!=null);
+  const mean=graded.length ? (graded.reduce((a,s)=>a+s.m.gpaN,0)/graded.length).toFixed(2) : '-';
+  const below=graded.filter(s=>s.m.gpaN<2).length;
+  const onPlan=list.filter(s=>s.m.devs===0).length;
+  const tiles=[
+    ['Students', n, 'on the roster'],
+    ['Mean GPA', mean, graded.length+' with grades'],
+    ['Below 2.00', below, 'need attention'],
+    ['On plan', onPlan+' / '+n, (n-onPlan)+' have moved something'],
+    ['Internship', list.filter(s=>s.m.intern.eligible).length+' / '+n, 'eligible now'],
+    ['Co-op', list.filter(s=>s.m.coop.eligible).length+' / '+n, 'eligible now']
+  ].map(t=>'<div class="adtile"><span>'+t[0]+'</span><b>'+t[1]+'</b><i>'+t[2]+'</i></div>').join('');
+
+  let maxB=1;
+  GPA_BUCKETS.forEach(b=>{ const c=graded.filter(s=>s.m.gpaN>=b.lo&&s.m.gpaN<b.hi).length; if(c>maxB) maxB=c; });
+  const dist=GPA_BUCKETS.map((b,i)=>{
+    const c=graded.filter(s=>s.m.gpaN>=b.lo&&s.m.gpaN<b.hi).length;
+    return '<div class="adbar'+(b.low?' low':'')+(adBucket===i?' on':'')+'" data-bucket="'+i+'">'+
+      '<span>'+b.label+'</span><div class="bar" style="width:'+Math.round(c/maxB*160)+'px"></div><b>'+c+'</b></div>';
+  }).join('');
+
+  const off=list.filter(s=>s.m.devs>0).sort((a,b)=>b.m.devs-a.m.devs).slice(0,8)
+    .map(s=>'<div class="adreq"><span>'+esc(s.name||s.id)+'</span><b>'+s.m.devs+' change'+(s.m.devs>1?'s':'')+'</b></div>').join('')
+    || '<div class="adreq"><span>Every student matches the published plan.</span></div>';
+
+  const trackCard=id=>{
+    const t=TRACKS[id];
+    const ok=list.filter(s=>trackStatus(s,id)==='ok').length;
+    const early=list.filter(s=>trackStatus(s,id)==='early').length;
+    const no=list.filter(s=>trackStatus(s,id)==='no').length;
+    const tally={};
+    list.forEach(s=>{ if(trackStatus(s,id)!=='no') return; s.m[id].fails.forEach(k=>{ tally[k]=(tally[k]||0)+1; }); });
+    const worst=Object.keys(tally).sort((a,b)=>tally[b]-tally[a]).slice(0,6).map(k=>{
+      const r=t.reqs.filter(x=>x.key===k)[0];
+      return '<div class="adreq"><span>'+esc(r?r.title:k)+'</span><b>'+tally[k]+'</b></div>';
+    }).join('') || '<div class="adreq"><span>No outstanding subject failures.</span></div>';
+    const w=c=>Math.round(c/Math.max(1,n)*160);
+    return '<div class="adcard"><h3>'+t.label+'</h3>'+
+      '<div class="adbar"><span>Eligible</span><div class="bar" style="width:'+w(ok)+'px"></div><b>'+ok+'</b></div>'+
+      '<div class="adbar low"><span>Not yet</span><div class="bar" style="width:'+w(no)+'px"></div><b>'+no+'</b></div>'+
+      '<div class="adbar"><span>Too early</span><div class="bar" style="width:'+w(early)+'px"></div><b>'+early+'</b></div>'+
+      '<h3 style="margin-top:12px">Most-missed requirement</h3>'+worst+'</div>';
+  };
+
+  const cols=[['id','ID'],['name','Name'],['advisor','Advisor'],['year','Yr'],['cred','Cred'],
+              ['gpaN','GPA'],['major','Major'],['devs','Off-plan'],['planned','Plan'],
+              ['intern','Intern'],['coop','Co-op']];
+  const head=cols.map(c=>'<th data-k="'+c[0]+'"'+(adSort.key===c[0]?' class="sorted"':'')+'>'+c[1]+
+    (adSort.key===c[0]?(adSort.dir>0?' ▲':' ▼'):'')+'</th>').join('');
+  const body=adRows().map(s=>{
+    const y=studentYear(s.id);
+    const mark=st=>st==='ok'?'<span class="ok">✓</span>':(st==='early'?'<span class="warn">–</span>':'<span class="no">✗</span>');
+    return '<tr data-id="'+esc(s.id)+'"><td>'+esc(s.id)+'</td><td>'+esc(s.name||'-')+'</td>'+
+      '<td>'+esc(s.advisor||'-')+'</td><td class="c">'+(y.known?y.year:'-')+'</td>'+
+      '<td class="c">'+s.m.cred+'</td><td class="c"><b>'+s.m.gpa+'</b></td><td class="c">'+s.m.major+'</td>'+
+      '<td class="c">'+(s.m.devs||'-')+'</td>'+
+      '<td class="c">'+(s.m.planned?s.m.planned+' sem':'-')+'</td>'+
+      '<td class="c">'+mark(trackStatus(s,'intern'))+'</td>'+
+      '<td class="c">'+mark(trackStatus(s,'coop'))+'</td></tr>';
+  }).join('') || '<tr><td colspan="11" class="adempty">No student matches that filter.</td></tr>';
+
+  adminview.innerHTML=
+    '<div class="adtools"><h2>Department dashboard</h2>'+
+      '<input type="search" id="adSearch" class="btn" placeholder="filter name / id / advisor..." value="'+esc(adFilter)+'" style="width:200px">'+
+      '<button class="btn" id="adReload">↻ reload</button>'+
+      '<button class="btn" id="adClose">✕ close</button></div>'+
+    '<div class="adwrap">'+
+      '<div class="adtiles">'+tiles+'</div>'+
+      '<div class="adgrid2">'+
+        '<div class="adcard"><h3>Cumulative GPA spread</h3>'+dist+
+          '<div class="planfoot">Click a band to filter the table. Planned semesters are never counted here.</div></div>'+
+        '<div class="adcard"><h3>Furthest from the published plan</h3>'+off+'</div>'+
+      '</div>'+
+      '<div class="adgrid2">'+trackCard('intern')+trackCard('coop')+'</div>'+
+      '<div class="adcard" style="padding:0;overflow:auto"><table class="adtable"><thead><tr>'+head+
+        '</tr></thead><tbody>'+body+'</tbody></table></div>'+
+      '<div class="planfoot" style="text-align:center">Click any row to open that student’s map, read-only.</div>'+
+    '</div>';
+
+  const se=document.getElementById('adSearch');
+  se.addEventListener('input',()=>{
+    adFilter=se.value;
+    const at=se.selectionStart;
+    renderAdmin();
+    const s2=document.getElementById('adSearch');
+    if(s2){ s2.focus(); try{ s2.setSelectionRange(at,at); }catch(e){} }
+  });
+  document.getElementById('adClose').addEventListener('click',closeAdmin);
+  document.getElementById('adReload').addEventListener('click',()=>openAdmin(true));
+  adminview.querySelectorAll('.adbar[data-bucket]').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.bucket; adBucket=(adBucket===i)?null:i; renderAdmin(); }));
+  adminview.querySelectorAll('.adtable th[data-k]').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k;
+    if(adSort.key===k) adSort.dir=-adSort.dir;
+    else adSort={key:k, dir:(k==='name'||k==='id'||k==='advisor')?1:-1};
+    renderAdmin(); }));
+  adminview.querySelectorAll('.adtable tbody tr[data-id]').forEach(tr=>tr.addEventListener('click',()=>{
+    const s=COHORT.filter(x=>x.id===tr.dataset.id)[0]; if(s) viewStudent(s); }));
+}
+
+function closeAdmin(){ adminview.classList.remove('open'); }
+async function openAdmin(force){
+  adminview.classList.add('open');
+  if(COHORT && !force){ renderAdmin(); return; }
+  adminview.innerHTML='<div class="adwrap"><div class="adcard adempty">Loading the cohort...</div></div>';
+  try{
+    const list=await fetchCohort();
+    list.forEach(s=>{ s.m=scoreStudent(s); });
+    COHORT=list;
+    renderAdmin();
+  }catch(err){
+    console.warn('admin load failed:',err);
+    adminview.innerHTML='<div class="adwrap"><div class="adcard adempty">Could not load the cohort: '+
+      esc(String((err&&err.message)||err))+'<br><br><button class="btn" id="adClose2">✕ close</button></div></div>';
+    const b=document.getElementById('adClose2'); if(b) b.addEventListener('click',closeAdmin);
+  }
+}
+
+// ---- read-only drill-down. READONLY blocks every sync* and writeCache(); body.viewas hides the
+// tools that would otherwise look editable. The admin's own state is parked in adminHome and
+// restored on exit -- never re-fetched, so leaving the view cannot lose unsynced work. ----
+function viewStudent(s){
+  if(!adminHome) adminHome=captureState();
+  READONLY=true; document.body.classList.add('viewas');
+  applyState(s.state); reconcileSems();
+  closeAdmin();
+  rebuildMap(true); repaintNodes(); updateTrackUI(); computeSummary(); renderIssues();
+  const y=studentYear(s.id);
+  viewbar.innerHTML='Viewing <b>'+esc(s.name||s.id)+'</b> ('+esc(s.id)+(y.known?' · Year '+y.year:'')+
+    ') — read-only. <button class="btn" id="vbBack">← dashboard</button>'+
+    '<button class="btn" id="vbExit">✕ exit</button>';
+  viewbar.classList.add('open');
+  document.getElementById('vbBack').addEventListener('click',()=>{ adminview.classList.add('open'); renderAdmin(); });
+  document.getElementById('vbExit').addEventListener('click',exitViewAs);
+}
+function exitViewAs(){
+  if(!adminHome) return;
+  applyState(adminHome); adminHome=null; READONLY=false;
+  viewbar.classList.remove('open'); viewbar.innerHTML='';
+  document.body.classList.remove('viewas');
+  closeAdmin();
+  reconcileSems(); rebuildMap(true); rehydrate(); updateTrackUI(); computeSummary(); renderIssues();
+}
+document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false));
+
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v24';
+const APP_BUILD='v25';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
