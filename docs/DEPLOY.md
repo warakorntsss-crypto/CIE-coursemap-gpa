@@ -33,7 +33,11 @@ netlify deploy --prod      # run from this folder; publish dir = .
 
 ## Files
 `index.html` · `data.js` · `manifest.json` · `service-worker.js` · `icon-192.png` · `icon-512.png`
-(Dev-only files — `serve.py`, `make_icons.py`, `APPS_SCRIPT.md`, `README.txt` — are intentionally NOT here.)
+(Dev-only files — `serve.py`, `make_icons.py`, `README.txt` — are intentionally NOT here.)
+
+`APPS_SCRIPT.md` is the backend source of truth — the Apps Script that turns the Google Sheet into
+the database. It is kept here so it versions alongside the client that calls it. Pages serves it as
+a static file; it holds no Sheet ID, no `/exec` URL and no credentials, only the schema and code.
 
 ## After deploy
 - First load caches the shell via the service worker. If you push an update and the old shell
