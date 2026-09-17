@@ -507,6 +507,18 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .node .mvh:hover{color:var(--cyan); background:rgba(23,92,204,.10)}
 .node .mvh:focus{outline:none; color:var(--cyan); background:rgba(23,92,204,.14)}
 #map.editmode .node .mvh{display:flex}
+/* A moved course used to be dashed ONLY inside edit mode, so an advisor reading the map saw it
+   as an ordinary course sitting in the wrong semester. Now it is marked at all times. Magenta is
+   free: the categories own blue/green/orange/yellow/grey/violet, the grade states green/red/
+   grey/blue, starred and selected own amber, plan-mode owns teal and re-takes own the violet
+   left edge. `outline` rather than `border`/`box-shadow` so it stacks with the grade colours
+   instead of overwriting them. */
+.node.moved{outline:2px dashed #db2777; outline-offset:-3px}
+.node .mvbadge{position:absolute; left:5px; top:3px; width:15px; height:15px; border-radius:50%;
+  background:#db2777; color:#fff; font-size:9px; line-height:15px; text-align:center; display:none; pointer-events:none}
+.node.moved .mvbadge{display:block}
+.node.isretake .mvbadge{left:23px}        /* sit beside the re-take badge, never on top of it */
+#map.codeonly .node .mvbadge{display:none}
 #map.editmode .node.moved{border-style:dashed}
 .node.mvdrag{z-index:20; cursor:grabbing; opacity:.85; box-shadow:0 10px 26px rgba(20,40,80,.30)}
 #cols .colhdr.mvtarget{border-color:var(--cyan); box-shadow:0 0 0 2px var(--cyan)}
@@ -998,12 +1010,23 @@ function sweep(dir){
 // relayout=true  : seed from the plan and run the 6 barycenter sweeps (initial load, track swap)
 // relayout=false : keep each column in its PREVIOUS vertical order (task 3: moving one box
 //                  must not re-shuffle the whole map); new keys fall to the bottom.
+// A course the student has just moved goes to the BOTTOM of the semester it lands in, rather
+// than keeping the row index it happened to hold in the column it came from -- which is what
+// made it appear wedged into the middle of the target stack. One key at a time: commitMove()
+// sets it, the next ordering pass consumes it. The column it LEFT needs nothing: order[] is
+// re-indexed by array position below, so the courses under the gap move up on their own.
+let _sinkToBottom=null;
 function orderColumns(relayout){
   const prev=Object.assign({},rowOf);
+  const sink=_sinkToBottom; _sinkToBottom=null;   // consumed by this pass only
   order.length=0; for(let c=0;c<NCOL;c++) order[c]=[];
   PLAN.nodes.forEach(n=>order[n.col].push(n.key));
   if(relayout){ for(let s=0;s<6;s++){ sweep(1); sweep(-1); } }
-  else { const r=k=>(prev[k]==null?1e6:prev[k]); for(let c=0;c<NCOL;c++) order[c].sort((a,b)=>r(a)-r(b)); }
+  else {
+    // 1e9 beats the 1e6 a brand-new key gets, so a moved course lands under those too
+    const r=k=>(k===sink?1e9:(prev[k]==null?1e6:prev[k]));
+    for(let c=0;c<NCOL;c++) order[c].sort((a,b)=>r(a)-r(b));
+  }
 }
 
 // ---- node select options ----
@@ -1060,6 +1083,7 @@ function createNodeEl(n){
     '<select class="grade" title="grade received"><option value="">-</option>'+GRADE_OPTS+'</select>'+
     '<div class="star" title="star">★</div><div class="dot"></div>'+
     '<div class="rtbadge" title="Re-take of a previous attempt">&#8635;</div>'+
+    '<div class="mvbadge">&#8646;</div>'+
     '<div class="mvh" tabindex="0" role="button" title="move to another semester" aria-label="move '+esc(n.short)+' to another semester">⠿</div>';
   if(isElec(n)) el.classList.add('elec');
   if(n.retakeOf) el.classList.add('isretake');   // RETAKE
@@ -1808,6 +1832,7 @@ function commitMove(key,col){
   else moves[key]=to;
   syncExtra(key);        // writes the cache AND the extras row (moved_col); "" when cleared
   trimExtraSems();       // EXTRA YEARS: an emptied trailing column shrinks back before the render
+  _sinkToBottom=key;     // stack it at the foot of wherever it lands -- see orderColumns()
   rebuildMap(false);     // re-derives PLAN from `moves`
   const n=byKey[key]; if(!n || n.col===before) return;    // nothing actually moved: stay quiet
   const w=moveWarnings(key);
@@ -2995,6 +3020,11 @@ function repaintNodes(){
     el.classList.toggle('starred', !!stars[n.key]);
     el.classList.toggle('hasnote', !!(notes[n.key]&&notes[n.key].trim()));
     el.classList.toggle('moved', moves[n.key]!=null);   // TASK 3A: dashed border = off the published plan
+    if(moves[n.key]!=null){                             // ...and say WHERE it came from on hover
+      const mb=el.querySelector('.mvbadge');
+      if(mb){ const pc=planCol(n.key), from=PLAN.sems[pc]&&PLAN.sems[pc].label;
+        mb.title='Moved'+(from?' from '+from:'')+' to '+PLAN.sems[n.col].label+' — not the published plan'; }
+    }
     el.classList.toggle('superseded', !!retakeNext[n.key]);   // WITHDRAWN: a newer attempt exists -- grey this one, it's no longer the live record
     if(isElec(n)){
       const ec=el.querySelector('.ecode'), en=el.querySelector('.ename');
@@ -3576,7 +3606,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v26';
+const APP_BUILD='v27';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){

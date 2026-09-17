@@ -9,7 +9,7 @@
 // the browser's own HTTP cache. They now come from the network whenever the
 // device is online, and fall back to the cache offline. Icons and the manifest
 // stay cache-first (they rarely change and are the slow part of a cold start).
-const CACHE = "coursemaps-cie-shell-v26";
+const CACHE = "coursemaps-cie-shell-v27";
 const SHELL = [
   "./", "./index.html", "./data.js", "./manifest.json",
   "./icon-192.png", "./icon-512.png"
