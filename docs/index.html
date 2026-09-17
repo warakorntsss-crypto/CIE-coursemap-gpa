@@ -132,6 +132,24 @@ body.isadmin #adminBtn{display:block}
 .adtable .no{color:#b3261e}
 .adtable .warn{color:var(--amber-ink); font-weight:600}
 .adempty{padding:24px; text-align:center; color:var(--ink-dim); font-size:12.5px}
+/* the filter chip bar. The "showing N of M" read-out is the point: a filter left on from an
+   earlier visit used to look exactly like a roster with people missing from it. */
+.adchips{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:9px 10px;
+  border-bottom:1px solid #e6ecf3; background:#fbfcfe; font-family:"JetBrains Mono",monospace; font-size:11px}
+.adchips i{font-style:normal; color:var(--ink-dim)}
+.adchips i b{color:var(--ink)}
+.adchips .btn{margin-left:auto; padding:4px 9px; font-size:10px}
+.adchip{display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  background:#eaf2fe; border:1px solid #bcd4f5; color:#1c4b96; border-radius:20px; padding:3px 9px}
+.adchip:hover{border-color:var(--cyan)}
+.adchip b{font-size:10px; opacity:.7}
+.adsum{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--ink-dim); margin-top:7px; letter-spacing:.4px}
+.adbar[data-track]{cursor:pointer}
+.adbar.none .bar{background:#93a3b4}
+.adtag{font-style:normal; font-family:"JetBrains Mono",monospace; font-size:9px; letter-spacing:.7px;
+  text-transform:uppercase; color:var(--amber-ink); border:1px solid var(--amber); border-radius:20px; padding:1px 5px}
+.adwarn{background:#fff4e5; border:1px solid var(--amber); color:#7a4a08; border-radius:8px;
+  padding:9px 12px; margin-bottom:12px; font-size:12px}
 /* read-only drill-down bar */
 #viewbar{position:fixed; left:0; right:0; bottom:0; z-index:70; display:none;
   align-items:center; gap:12px; flex-wrap:wrap; justify-content:center;
@@ -3208,9 +3226,14 @@ if(window.matchMedia('(hover:hover) and (pointer:fine)').matches){
 // ===========================================================================
 const ADMIN_BASE_TABS=["Y1S1","Y1S2","Y2S1","Y2S2","Y3S1","Y3S2","Summer","Y4S1","Y4S2"];
 const adminview=document.getElementById('adminview'), viewbar=document.getElementById('viewbar');
-let COHORT=null, adSort={key:'gpaN', dir:-1}, adFilter='', adBucket=null, adminHome=null;
+let COHORT=null, adSort={key:'gpaN', dir:-1}, adminHome=null, COHORT_WARN=[];
+// every filter the dashboard offers, in one object: one place to read, one to clear, one to show
+let adQ={text:'', bucket:null, track:null};   // track: {id:'intern'|'coop', status:'ok'|'no'|'early'}
+// The last band is a catch-all for a student with no grades at all. Without it the bands only
+// covered gpaN!=null, so clicking any band hid those students and nothing brought them back.
 const GPA_BUCKETS=[{lo:0,hi:2,label:'< 2.00',low:true},{lo:2,hi:2.5,label:'2.00-2.49'},
-  {lo:2.5,hi:3,label:'2.50-2.99'},{lo:3,hi:3.5,label:'3.00-3.49'},{lo:3.5,hi:99,label:'3.50 +'}];
+  {lo:2.5,hi:3,label:'2.50-2.99'},{lo:3,hi:3.5,label:'3.00-3.49'},{lo:3.5,hi:99,label:'3.50 +'},
+  {ungraded:true, label:'No grades yet'}];
 
 // the semester tab name for the k-th column past the published plan -- the same string semOf()
 // derives from semLabelAt(), kept in one expression so the two cannot drift
@@ -3224,7 +3247,17 @@ async function fetchCohort(){
   students.forEach(r=>{ const n=parseInt(r.extra_sems,10); if(isFinite(n)&&n>maxX) maxX=Math.min(n,MAX_EXTRA_SEMS); });
   const tabs=ADMIN_BASE_TABS.slice();
   for(let k=0;k<maxX;k++) tabs.push(extraTabName(k));
-  const semRows = await Promise.all(tabs.map(t=>API.sheet(t).catch(()=>[])));
+  // A swallowed read is indistinguishable from an empty tab, which would quietly report a whole
+  // semester of grades as missing. Retry once, then REMEMBER the failure so the page can say so
+  // rather than presenting partial data as complete.
+  COHORT_WARN=[];
+  const semRows = await Promise.all(tabs.map(async t=>{
+    try{ return await API.sheet(t); }
+    catch(e){
+      try{ return await API.sheet(t); }
+      catch(e2){ COHORT_WARN.push(t); console.warn('cohort: tab '+t+' failed twice:',e2); return []; }
+    }
+  }));
 
   const by={};
   const get=id=>by[id]||(by[id]={grades:{},stars:{},notes:{},elec:{},moves:{},customs:{}});
@@ -3282,24 +3315,47 @@ function scoreStudent(s){
   });
 }
 // A Year 1 student has not failed the Year 3 internship conditions -- they have not reached
-// them. Split the roster three ways so the "not eligible" count means something.
+// them. Split the roster three ways so the "not eligible" count means something. An ID that does
+// not parse to a plausible study year ("peetza01", an intake year two decades old) is UNKNOWN,
+// not failing, so it lands in the same not-due bucket rather than being reported as a shortfall.
 function trackStatus(s, id){
   const t=TRACKS[id], due=(t.deadline&&t.deadline.year)||3;
   const y=studentYear(s.id);
   if(s.m[id].eligible) return 'ok';
-  return (y.known && y.year<due) ? 'early' : 'no';
+  return (!y.known || y.year<due) ? 'early' : 'no';
+}
+const TRACK_STATUS=[{k:'ok', label:'Eligible'},{k:'no', label:'Not yet', low:true},
+                    {k:'early', label:'Not due / unknown'}];
+
+// ---- Which GPA band a student is in. ONE predicate, used for the bar's count AND for the
+// filter, because a count derived separately from the list it points at is exactly how the
+// dashboard came to show a band of 4 above a table of 3. The last band matches gpaN==null, so
+// the bands partition the roster: every student is in exactly one, and they sum to the
+// headcount. ----
+function bandOf(s){
+  for(let i=0;i<GPA_BUCKETS.length;i++){
+    const b=GPA_BUCKETS[i];
+    if(b.ungraded){ if(s.m.gpaN==null) return i; }
+    else if(s.m.gpaN!=null && s.m.gpaN>=b.lo && s.m.gpaN<b.hi) return i;
+  }
+  return -1;   // unreachable: the ungraded band is a catch-all
 }
 
+// ---- the filter model. One object, so there is one place to read, one place to clear, and one
+// read-out on screen. Every filter the UI offers lives here; nothing filters rows behind its
+// back. ----
+function adClear(){ adQ={text:'', bucket:null, track:null}; }
+function adActive(){ return !!(adQ.text.trim() || adQ.bucket!=null || adQ.track); }
 function adRows(){
-  const q=adFilter.trim().toLowerCase();
-  let rows=COHORT.filter(s=>s.role!=='admin');
+  let rows=COHORT.slice();
+  const q=adQ.text.trim().toLowerCase();
   if(q) rows=rows.filter(s=>(s.id+' '+s.name+' '+s.advisor).toLowerCase().indexOf(q)>=0);
-  if(adBucket!=null){ const b=GPA_BUCKETS[adBucket];
-    rows=rows.filter(s=>s.m.gpaN!=null && s.m.gpaN>=b.lo && s.m.gpaN<b.hi); }
+  if(adQ.bucket!=null) rows=rows.filter(s=>bandOf(s)===adQ.bucket);
+  if(adQ.track) rows=rows.filter(s=>trackStatus(s,adQ.track.id)===adQ.track.status);
   const k=adSort.key, dir=adSort.dir;
-  return rows.slice().sort((a,b)=>{
+  return rows.sort((a,b)=>{
     let x,y;
-    if(k==='name'||k==='advisor'||k==='id'){ return dir*String(a[k]||'').localeCompare(String(b[k]||'')); }
+    if(k==='name'||k==='advisor'||k==='id') return dir*String(a[k]||'').localeCompare(String(b[k]||''));
     if(k==='intern'||k==='coop'){ x=a.m[k].eligible?1:0; y=b.m[k].eligible?1:0; }
     else if(k==='year'){ x=(studentYear(a.id).year||0); y=(studentYear(b.id).year||0); }
     else if(k==='major'){ x=parseFloat(a.m.major)||-1; y=parseFloat(b.m.major)||-1; }
@@ -3310,50 +3366,74 @@ function adRows(){
   });
 }
 
+// ---- the chip bar: what is filtered, how many rows that leaves, and a way out of each filter
+// on its own. The "showing N of M" is the part that matters -- a filter left on from an earlier
+// visit can no longer pass itself off as a short roster. ----
+function chipsHtml(){
+  const shown=adRows().length, total=COHORT.length;
+  if(!adActive()) return '<div class="adchips"><i>Showing all '+total+' rows.</i></div>';
+  const chips=[];
+  if(adQ.text.trim()) chips.push('<span class="adchip" data-clear="text">search: '+esc(adQ.text.trim())+' <b>✕</b></span>');
+  if(adQ.bucket!=null) chips.push('<span class="adchip" data-clear="bucket">GPA '+esc(GPA_BUCKETS[adQ.bucket].label)+' <b>✕</b></span>');
+  if(adQ.track){
+    const lbl=TRACK_STATUS.filter(t=>t.k===adQ.track.status)[0];
+    chips.push('<span class="adchip" data-clear="track">'+esc(TRACKS[adQ.track.id].label)+': '+
+      esc(lbl?lbl.label:adQ.track.status)+' <b>✕</b></span>');
+  }
+  return '<div class="adchips">'+chips.join('')+
+    '<i>Showing <b>'+shown+'</b> of '+total+' rows.</i>'+
+    '<button class="btn" id="adClearAll">clear filters</button></div>';
+}
+
 function renderAdmin(){
-  const list=COHORT.filter(s=>s.role!=='admin');
-  const n=list.length;
-  const graded=list.filter(s=>s.m.gpaN!=null);
+  const all=COHORT;
+  const n=all.length;
+  // Mean GPA and Below 2.00 are cohort statistics: a staff account should not move them. Every
+  // CLICKABLE number below runs over `all`, so bar counts and table rows can never disagree.
+  const students=all.filter(s=>s.role!=='admin');
+  const graded=students.filter(s=>s.m.gpaN!=null);
   const mean=graded.length ? (graded.reduce((a,s)=>a+s.m.gpaN,0)/graded.length).toFixed(2) : '-';
   const below=graded.filter(s=>s.m.gpaN<2).length;
-  const onPlan=list.filter(s=>s.m.devs===0).length;
+  const onPlan=all.filter(s=>s.m.devs===0).length;
+  const staff=n-students.length;
   const tiles=[
-    ['Students', n, 'on the roster'],
-    ['Mean GPA', mean, graded.length+' with grades'],
-    ['Below 2.00', below, 'need attention'],
+    ['Rows', n, students.length+' student'+(students.length===1?'':'s')+(staff?' · '+staff+' staff':'')],
+    ['Mean GPA', mean, 'over '+graded.length+' graded student'+(graded.length===1?'':'s')],
+    ['Below 2.00', below, 'of '+graded.length+' graded students'],
     ['On plan', onPlan+' / '+n, (n-onPlan)+' have moved something'],
-    ['Internship', list.filter(s=>s.m.intern.eligible).length+' / '+n, 'eligible now'],
-    ['Co-op', list.filter(s=>s.m.coop.eligible).length+' / '+n, 'eligible now']
+    ['Internship', all.filter(s=>trackStatus(s,'intern')==='ok').length+' / '+n, 'eligible now'],
+    ['Co-op', all.filter(s=>trackStatus(s,'coop')==='ok').length+' / '+n, 'eligible now']
   ].map(t=>'<div class="adtile"><span>'+t[0]+'</span><b>'+t[1]+'</b><i>'+t[2]+'</i></div>').join('');
 
-  let maxB=1;
-  GPA_BUCKETS.forEach(b=>{ const c=graded.filter(s=>s.m.gpaN>=b.lo&&s.m.gpaN<b.hi).length; if(c>maxB) maxB=c; });
-  const dist=GPA_BUCKETS.map((b,i)=>{
-    const c=graded.filter(s=>s.m.gpaN>=b.lo&&s.m.gpaN<b.hi).length;
-    return '<div class="adbar'+(b.low?' low':'')+(adBucket===i?' on':'')+'" data-bucket="'+i+'">'+
-      '<span>'+b.label+'</span><div class="bar" style="width:'+Math.round(c/maxB*160)+'px"></div><b>'+c+'</b></div>';
-  }).join('');
+  const counts=GPA_BUCKETS.map((b,i)=>all.filter(s=>bandOf(s)===i).length);
+  let maxB=1; counts.forEach(c=>{ if(c>maxB) maxB=c; });
+  const dist=GPA_BUCKETS.map((b,i)=>
+    '<div class="adbar'+(b.low?' low':'')+(b.ungraded?' none':'')+(adQ.bucket===i?' on':'')+'" data-bucket="'+i+'">'+
+      '<span>'+esc(b.label)+'</span><div class="bar" style="width:'+Math.round(counts[i]/maxB*150)+'px"></div>'+
+      '<b>'+counts[i]+'</b></div>').join('')+
+    '<div class="adsum">'+counts.reduce((a,c)=>a+c,0)+' rows, all accounted for</div>';
 
-  const off=list.filter(s=>s.m.devs>0).sort((a,b)=>b.m.devs-a.m.devs).slice(0,8)
+  const off=all.filter(s=>s.m.devs>0).sort((a,b)=>b.m.devs-a.m.devs).slice(0,8)
     .map(s=>'<div class="adreq"><span>'+esc(s.name||s.id)+'</span><b>'+s.m.devs+' change'+(s.m.devs>1?'s':'')+'</b></div>').join('')
     || '<div class="adreq"><span>Every student matches the published plan.</span></div>';
 
   const trackCard=id=>{
     const t=TRACKS[id];
-    const ok=list.filter(s=>trackStatus(s,id)==='ok').length;
-    const early=list.filter(s=>trackStatus(s,id)==='early').length;
-    const no=list.filter(s=>trackStatus(s,id)==='no').length;
+    const bars=TRACK_STATUS.map(st=>{
+      const c=all.filter(s=>trackStatus(s,id)===st.k).length;
+      const on=adQ.track && adQ.track.id===id && adQ.track.status===st.k;
+      return '<div class="adbar'+(st.low?' low':'')+(on?' on':'')+'" data-track="'+id+'" data-status="'+st.k+'">'+
+        '<span>'+st.label+'</span><div class="bar" style="width:'+Math.round(c/Math.max(1,n)*150)+'px"></div>'+
+        '<b>'+c+'</b></div>';
+    }).join('');
     const tally={};
-    list.forEach(s=>{ if(trackStatus(s,id)!=='no') return; s.m[id].fails.forEach(k=>{ tally[k]=(tally[k]||0)+1; }); });
+    all.forEach(s=>{ if(trackStatus(s,id)!=='no') return; s.m[id].fails.forEach(k=>{ tally[k]=(tally[k]||0)+1; }); });
     const worst=Object.keys(tally).sort((a,b)=>tally[b]-tally[a]).slice(0,6).map(k=>{
       const r=t.reqs.filter(x=>x.key===k)[0];
       return '<div class="adreq"><span>'+esc(r?r.title:k)+'</span><b>'+tally[k]+'</b></div>';
     }).join('') || '<div class="adreq"><span>No outstanding subject failures.</span></div>';
-    const w=c=>Math.round(c/Math.max(1,n)*160);
-    return '<div class="adcard"><h3>'+t.label+'</h3>'+
-      '<div class="adbar"><span>Eligible</span><div class="bar" style="width:'+w(ok)+'px"></div><b>'+ok+'</b></div>'+
-      '<div class="adbar low"><span>Not yet</span><div class="bar" style="width:'+w(no)+'px"></div><b>'+no+'</b></div>'+
-      '<div class="adbar"><span>Too early</span><div class="bar" style="width:'+w(early)+'px"></div><b>'+early+'</b></div>'+
+    return '<div class="adcard"><h3>'+t.label+'</h3>'+bars+
+      '<div class="adsum">click a bar to filter the list</div>'+
       '<h3 style="margin-top:12px">Most-missed requirement</h3>'+worst+'</div>';
   };
 
@@ -3362,60 +3442,95 @@ function renderAdmin(){
               ['intern','Intern'],['coop','Co-op']];
   const head=cols.map(c=>'<th data-k="'+c[0]+'"'+(adSort.key===c[0]?' class="sorted"':'')+'>'+c[1]+
     (adSort.key===c[0]?(adSort.dir>0?' ▲':' ▼'):'')+'</th>').join('');
-  const body=adRows().map(s=>{
+
+  adminview.innerHTML=
+    '<div class="adtools"><h2>Department dashboard</h2>'+
+      '<input type="search" id="adSearch" class="btn" placeholder="filter name / id / advisor..." value="'+esc(adQ.text)+'" style="width:200px">'+
+      '<button class="btn" id="adReload">↻ reload</button>'+
+      '<button class="btn" id="adClose">✕ close</button></div>'+
+    '<div class="adwrap">'+
+      (COHORT_WARN.length ? '<div class="adwarn">⚠ These tabs did not load: <b>'+esc(COHORT_WARN.join(', '))+
+        '</b>. Grades held there are missing from every number on this page — reload before acting on it.</div>' : '')+
+      '<div class="adtiles">'+tiles+'</div>'+
+      '<div class="adgrid2">'+
+        '<div class="adcard"><h3>Cumulative GPA spread</h3>'+dist+
+          '<div class="planfoot">Click a band to filter the list. Planned semesters are never counted here.</div></div>'+
+        '<div class="adcard"><h3>Furthest from the published plan</h3>'+off+'</div>'+
+      '</div>'+
+      '<div class="adgrid2">'+trackCard('intern')+trackCard('coop')+'</div>'+
+      '<div class="adcard" style="padding:0;overflow:auto"><div id="adChips"></div>'+
+        '<table class="adtable"><thead><tr>'+head+'</tr></thead><tbody id="adBody"></tbody></table></div>'+
+      '<div class="planfoot" style="text-align:center">Click any row to open that student’s map, read-only.</div>'+
+    '</div>';
+
+  renderAdminTable();
+
+  const se=document.getElementById('adSearch');
+  // only the chips and the tbody are rebuilt on a keystroke -- re-creating the whole overlay
+  // destroyed this input mid-word, which an IME does not survive
+  se.addEventListener('input',()=>{ adQ.text=se.value; renderAdminTable(); });
+  document.getElementById('adClose').addEventListener('click',closeAdmin);
+  document.getElementById('adReload').addEventListener('click',()=>openAdmin(true));
+  adminview.querySelectorAll('.adbar[data-bucket]').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.bucket;
+    adQ.bucket=(adQ.bucket===i)?null:i;
+    renderAdmin();
+  }));
+  adminview.querySelectorAll('.adbar[data-track]').forEach(b=>b.addEventListener('click',()=>{
+    const id=b.dataset.track, st=b.dataset.status;
+    adQ.track=(adQ.track && adQ.track.id===id && adQ.track.status===st) ? null : {id, status:st};
+    renderAdmin();
+  }));
+  adminview.querySelectorAll('.adtable th[data-k]').forEach(th=>th.addEventListener('click',()=>{
+    const k=th.dataset.k;
+    if(adSort.key===k) adSort.dir=-adSort.dir;
+    else adSort={key:k, dir:(k==='name'||k==='id'||k==='advisor')?1:-1};
+    renderAdmin();
+  }));
+}
+
+// chips + rows only. Called on every keystroke and after every filter change.
+function renderAdminTable(){
+  const chips=document.getElementById('adChips'), body=document.getElementById('adBody');
+  if(!chips||!body) return;
+  chips.innerHTML=chipsHtml();
+  const rows=adRows();
+  body.innerHTML = rows.map(s=>{
     const y=studentYear(s.id);
-    const mark=st=>st==='ok'?'<span class="ok">✓</span>':(st==='early'?'<span class="warn">–</span>':'<span class="no">✗</span>');
-    return '<tr data-id="'+esc(s.id)+'"><td>'+esc(s.id)+'</td><td>'+esc(s.name||'-')+'</td>'+
+    const mark=st=>st==='ok'?'<span class="ok">✓</span>'
+      :(st==='early'?'<span class="warn" title="not due yet, or the ID does not give a study year">–</span>'
+      :'<span class="no">✗</span>');
+    return '<tr data-id="'+esc(s.id)+'"><td>'+esc(s.id)+'</td>'+
+      '<td>'+esc(s.name||'-')+(s.role==='admin'?' <em class="adtag">admin</em>':'')+'</td>'+
       '<td>'+esc(s.advisor||'-')+'</td><td class="c">'+(y.known?y.year:'-')+'</td>'+
       '<td class="c">'+s.m.cred+'</td><td class="c"><b>'+s.m.gpa+'</b></td><td class="c">'+s.m.major+'</td>'+
       '<td class="c">'+(s.m.devs||'-')+'</td>'+
       '<td class="c">'+(s.m.planned?s.m.planned+' sem':'-')+'</td>'+
       '<td class="c">'+mark(trackStatus(s,'intern'))+'</td>'+
       '<td class="c">'+mark(trackStatus(s,'coop'))+'</td></tr>';
-  }).join('') || '<tr><td colspan="11" class="adempty">No student matches that filter.</td></tr>';
+  }).join('') || '<tr><td colspan="11" class="adempty">No row matches these filters.</td></tr>';
 
-  adminview.innerHTML=
-    '<div class="adtools"><h2>Department dashboard</h2>'+
-      '<input type="search" id="adSearch" class="btn" placeholder="filter name / id / advisor..." value="'+esc(adFilter)+'" style="width:200px">'+
-      '<button class="btn" id="adReload">↻ reload</button>'+
-      '<button class="btn" id="adClose">✕ close</button></div>'+
-    '<div class="adwrap">'+
-      '<div class="adtiles">'+tiles+'</div>'+
-      '<div class="adgrid2">'+
-        '<div class="adcard"><h3>Cumulative GPA spread</h3>'+dist+
-          '<div class="planfoot">Click a band to filter the table. Planned semesters are never counted here.</div></div>'+
-        '<div class="adcard"><h3>Furthest from the published plan</h3>'+off+'</div>'+
-      '</div>'+
-      '<div class="adgrid2">'+trackCard('intern')+trackCard('coop')+'</div>'+
-      '<div class="adcard" style="padding:0;overflow:auto"><table class="adtable"><thead><tr>'+head+
-        '</tr></thead><tbody>'+body+'</tbody></table></div>'+
-      '<div class="planfoot" style="text-align:center">Click any row to open that student’s map, read-only.</div>'+
-    '</div>';
-
-  const se=document.getElementById('adSearch');
-  se.addEventListener('input',()=>{
-    adFilter=se.value;
-    const at=se.selectionStart;
+  const ca=document.getElementById('adClearAll');
+  if(ca) ca.addEventListener('click',()=>{ adClear(); renderAdmin(); });
+  chips.querySelectorAll('.adchip[data-clear]').forEach(c=>c.addEventListener('click',()=>{
+    const w=c.dataset.clear;
+    if(w==='text'){ adQ.text=''; const se=document.getElementById('adSearch'); if(se) se.value=''; }
+    else if(w==='bucket') adQ.bucket=null;
+    else adQ.track=null;
     renderAdmin();
-    const s2=document.getElementById('adSearch');
-    if(s2){ s2.focus(); try{ s2.setSelectionRange(at,at); }catch(e){} }
-  });
-  document.getElementById('adClose').addEventListener('click',closeAdmin);
-  document.getElementById('adReload').addEventListener('click',()=>openAdmin(true));
-  adminview.querySelectorAll('.adbar[data-bucket]').forEach(b=>b.addEventListener('click',()=>{
-    const i=+b.dataset.bucket; adBucket=(adBucket===i)?null:i; renderAdmin(); }));
-  adminview.querySelectorAll('.adtable th[data-k]').forEach(th=>th.addEventListener('click',()=>{
-    const k=th.dataset.k;
-    if(adSort.key===k) adSort.dir=-adSort.dir;
-    else adSort={key:k, dir:(k==='name'||k==='id'||k==='advisor')?1:-1};
-    renderAdmin(); }));
-  adminview.querySelectorAll('.adtable tbody tr[data-id]').forEach(tr=>tr.addEventListener('click',()=>{
-    const s=COHORT.filter(x=>x.id===tr.dataset.id)[0]; if(s) viewStudent(s); }));
+  }));
+  body.querySelectorAll('tr[data-id]').forEach(tr=>tr.addEventListener('click',()=>{
+    const s=COHORT.filter(x=>x.id===tr.dataset.id)[0]; if(s) viewStudent(s);
+  }));
 }
 
 function closeAdmin(){ adminview.classList.remove('open'); }
-async function openAdmin(force){
+// `keep` is passed only by the drill-down's "back to dashboard", where returning to the view you
+// left is the whole point. Opening from the header button always starts unfiltered, so a filter
+// set in an earlier visit can never greet you as a missing student.
+async function openAdmin(force, keep){
   adminview.classList.add('open');
+  if(!keep) adClear();
   if(COHORT && !force){ renderAdmin(); return; }
   adminview.innerHTML='<div class="adwrap"><div class="adcard adempty">Loading the cohort...</div></div>';
   try{
@@ -3461,7 +3576,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v25';
+const APP_BUILD='v26';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
