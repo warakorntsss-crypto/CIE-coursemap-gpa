@@ -53,6 +53,12 @@ window.API = {
     return apiPost({ action: "setExtra", student_id, course_key, data });
   },
 
+  // removes the extras row entirely. Used when a student-added course is deleted: upserting a
+  // blank row instead (the only option before) left an empty row behind permanently.
+  delExtra(student_id, course_key) {
+    return apiPost({ action: "setExtra", student_id, course_key, remove: true });
+  },
+
   // data = {name, advisor_comment, track}; updates the student's `students` row
   setProfile(student_id, data) {
     return apiPost({ action: "setProfile", student_id, data });

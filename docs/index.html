@@ -2056,6 +2056,13 @@ function syncCustom(key){          // course definition -> the `custom` tab
       .catch(err=>{ console.warn("setCustom failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
   },400);
 }
+function syncDelExtra(key){        // remove the `extras` tab row outright
+  if(!key) return; writeCache();
+  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  clearTimeout(_eTimers[key]);     // a pending upsert for this key must not re-create the row
+  API.delExtra(CURRENT.student_id, key)
+    .catch(err=>console.warn("delExtra failed:",err));
+}
 function syncDelCustom(key){       // remove the `custom` tab row
   if(!key) return; writeCache();
   if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
@@ -2096,7 +2103,9 @@ function removeCustomCourse(key){
     }
   });
   delete grades[key]; delete stars[key]; delete notes[key]; delete elec[key]; delete moves[key];
-  syncGrade(key); syncExtra(key);
+  // syncExtra() would upsert a BLANK row and leave it there for ever -- which is exactly how
+  // this Sheet accumulated 17 empty rows pointing at courses that no longer exist.
+  syncGrade(key); syncDelExtra(key);
   delete customs[key];
   syncDelCustom(key);
   trimExtraSems();   // EXTRA YEARS: this course may have been the last thing in a trailing column
@@ -3606,7 +3615,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v27';
+const APP_BUILD='v28';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){

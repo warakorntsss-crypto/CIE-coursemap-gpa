@@ -44,6 +44,7 @@ Open the Sheet → **Extensions → Apps Script**. Delete `Code.gs`, paste the w
  * POST {action:"setGrade",student_id, sem, course_key, grade}  -> {ok:true}
  * POST {action:"setExtra",student_id, course_key, data:{...}}   -> {ok:true}
  * POST {action:"setProfile",student_id, data:{name,advisor_comment,track,extra_sems,plan_sems}} -> {ok:true}
+ * POST {action:"setExtra",  student_id, course_key, remove:true}                -> {ok:true}
  * POST {action:"setCustom", student_id, course_key, data:{code,name,cr,cat,col,major_gpa,retake_of,attempt}} -> {ok:true}
  * POST {action:"setCustom", student_id, course_key, remove:true}               -> {ok:true}
  *
@@ -269,6 +270,10 @@ function setExtra(b) {
     starred: d.starred || "", note: d.note || "", elec_code: d.elec_code || "", elec_name: d.elec_name || "",
     moved_col: (d.moved_col === 0 || d.moved_col) ? d.moved_col : "" };
   var r = rowIndexBy(sh, headers, "id", id);
+  // b.remove === true deletes the row outright, the same way setCustom does. Without this the
+  // only way to "clear" an extras row was to upsert a blank one, so every student-added course
+  // that was later deleted left an empty row behind for good.
+  if (b.remove) { if (r !== -1) sh.deleteRow(r); return { ok: true }; }
   if (r === -1) { appendObj(sh, headers, fields); return { ok: true }; }
   for (var k in fields) { var c = headers.indexOf(k); if (c !== -1) sh.getRange(r, c + 1).setValue(fields[k]); }
   return { ok: true };
