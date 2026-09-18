@@ -442,6 +442,9 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   .hint{display:none}
   #zoom button{width:44px; height:44px}
   .node .star{padding:4px; font-size:14px; right:2px; top:2px}
+  /* the star shrinks and tucks in on a phone, so the badge row follows it */
+  .node .rtbadge,.node .mvbadge{right:24px; top:6px}
+  .node.isretake .mvbadge{right:42px}
   /* compact 1-page recap: fixed readable width on phone, modal scrolls sideways */
   .compactpaper{width:720px; max-width:none}
 }
@@ -514,10 +517,10 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
    left edge. `outline` rather than `border`/`box-shadow` so it stacks with the grade colours
    instead of overwriting them. */
 .node.moved{outline:2px dashed #db2777; outline-offset:-3px}
-.node .mvbadge{position:absolute; left:5px; top:3px; width:15px; height:15px; border-radius:50%;
+.node .mvbadge{position:absolute; right:28px; top:8px; width:15px; height:15px; border-radius:50%;
   background:#db2777; color:#fff; font-size:9px; line-height:15px; text-align:center; display:none; pointer-events:none}
 .node.moved .mvbadge{display:block}
-.node.isretake .mvbadge{left:23px}        /* sit beside the re-take badge, never on top of it */
+.node.isretake .mvbadge{right:47px}       /* one slot further out, never on top of the re-take badge */
 #map.codeonly .node .mvbadge{display:none}
 #map.editmode .node.moved{border-style:dashed}
 .node.mvdrag{z-index:20; cursor:grabbing; opacity:.85; box-shadow:0 10px 26px rgba(20,40,80,.30)}
@@ -618,7 +621,10 @@ body.editing #addBtn{display:block}
 .devlabel:hover{color:var(--cyan)}
 .devlabel:focus-visible{outline:none; box-shadow:0 0 0 1px var(--cyan)}
 /* ---- RETAKE: withdrawn-course re-take button, box badge, and picker dialog (TASK 3 LAST) ---- */
-.node .rtbadge{position:absolute; left:5px; top:3px; width:15px; height:15px; border-radius:50%;
+/* status badges live in a row beside the star, top-right. The star's own box is 15px of glyph
+   plus 5px of padding from right:4px, so it occupies right 9..24 -- the badges start after that
+   and march leftwards. top:8px puts a 15px badge on the star glyph's centre line. */
+.node .rtbadge{position:absolute; right:28px; top:8px; width:15px; height:15px; border-radius:50%;
   background:#9673A6; color:#fff; font-size:10px; line-height:15px; text-align:center; display:none; pointer-events:none}
 .node.isretake{border-left:3px solid #9673A6}
 .node.isretake .rtbadge{display:block}
@@ -3615,7 +3621,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v28';
+const APP_BUILD='v29';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
