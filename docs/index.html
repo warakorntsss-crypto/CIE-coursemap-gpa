@@ -3488,25 +3488,56 @@ const GPA_BUCKETS=[{lo:0,hi:2,label:'< 2.00',low:true},{lo:2,hi:2.5,label:'2.00-
 // derives from semLabelAt(), kept in one expression so the two cannot drift
 function extraTabName(k){ return 'Y'+(5+Math.floor(k/2))+'S'+(k%2+1); }
 
-async function fetchCohort(){
-  const [students, extras, customRows] = await Promise.all([
-    API.sheet('students'), API.sheet('extras'), API.sheet('custom')]);
+// Apps Script's /exec GET 302-redirects to script.googleusercontent.com, and THAT endpoint
+// returns a transient 404 often enough that a dozen parallel reads will reliably lose one.
+// Measured against the live backend: the same tab answered 200, then 404, then 404, with
+// nothing changed in between. The dashboard asks for 13 tabs, so this was not a rare event --
+// and the students/extras/custom read had no retry at all, so a single dropped request took
+// the whole page down with "Could not load the cohort: GET custom 404".
+// Two defences: retry with a backoff, and never have more than a few reads in flight.
+const COHORT_TRIES=4, COHORT_CONCURRENCY=3;
+const sleepMs = ms => new Promise(r=>setTimeout(r,ms));
+async function sheetRetry(name){
+  let last=null;
+  for(let i=0;i<COHORT_TRIES;i++){
+    try{ return await API.sheet(name); }
+    catch(e){ last=e; if(i<COHORT_TRIES-1) await sleepMs(350*(i+1)); }
+  }
+  throw last;
+}
+// Promise.all with a ceiling on how many run at once; results stay in input order.
+async function mapLimit(items, limit, fn){
+  const out=new Array(items.length); let next=0;
+  const worker=async()=>{ while(next<items.length){ const i=next++; out[i]=await fn(items[i]); } };
+  await Promise.all(Array.from({length:Math.min(limit,items.length)||0}, worker));
+  return out;
+}
+
+// onProgress(done,total) is optional -- a retried read can push a cohort load into the tens of
+// seconds, and a static "Loading..." for that long reads as a hang.
+async function fetchCohort(onProgress){
+  let done=0, total=3;                                  // 3 now; the semester tabs are added below
+  const say=()=>{ if(onProgress) onProgress(done,total); };
+  const read=async name=>{ const r=await sheetRetry(name); done++; say(); return r; };
+  const [students, extras, customRows] =
+    await mapLimit(['students','extras','custom'], COHORT_CONCURRENCY, read);
   // Y5+ tabs exist only once somebody grew their plan; ask for as many as the roster claims.
   let maxX=0;
   students.forEach(r=>{ const n=parseInt(r.extra_sems,10); if(isFinite(n)&&n>maxX) maxX=Math.min(n,MAX_EXTRA_SEMS); });
   const tabs=ADMIN_BASE_TABS.slice();
   for(let k=0;k<maxX;k++) tabs.push(extraTabName(k));
   // A swallowed read is indistinguishable from an empty tab, which would quietly report a whole
-  // semester of grades as missing. Retry once, then REMEMBER the failure so the page can say so
-  // rather than presenting partial data as complete.
+  // semester of grades as missing. sheetRetry() exhausts its attempts first; only then is the
+  // failure REMEMBERED, so the page can say so rather than presenting partial data as complete.
+  // (students/extras/custom above deliberately do NOT degrade like this -- without them there is
+  // no cohort at all, so they throw and openAdmin() reports it.)
   COHORT_WARN=[];
-  const semRows = await Promise.all(tabs.map(async t=>{
-    try{ return await API.sheet(t); }
-    catch(e){
-      try{ return await API.sheet(t); }
-      catch(e2){ COHORT_WARN.push(t); console.warn('cohort: tab '+t+' failed twice:',e2); return []; }
-    }
-  }));
+  total=3+tabs.length; say();
+  const semRows = await mapLimit(tabs, COHORT_CONCURRENCY, async t=>{
+    try{ return await sheetRetry(t); }
+    catch(e){ COHORT_WARN.push(t); console.warn('cohort: tab '+t+' failed '+COHORT_TRIES+'x:',e); return []; }
+    finally { done++; say(); }
+  });
 
   const by={};
   const get=id=>by[id]||(by[id]={grades:{},stars:{},notes:{},elec:{},moves:{},customs:{}});
@@ -3782,9 +3813,12 @@ async function openAdmin(force, keep){
   adminview.classList.add('open');
   if(!keep) adClear();
   if(COHORT && !force){ renderAdmin(); return; }
-  adminview.innerHTML='<div class="adwrap"><div class="adcard adempty">Loading the cohort...</div></div>';
+  adminview.innerHTML='<div class="adwrap"><div class="adcard adempty" id="adLoading">Loading the cohort...</div></div>';
   try{
-    const list=await fetchCohort();
+    const list=await fetchCohort((done,total)=>{
+      const el=document.getElementById('adLoading');
+      if(el) el.textContent='Loading the cohort... '+done+' / '+total+' sheets';
+    });
     list.forEach(s=>{ s.m=scoreStudent(s); });
     COHORT=list;
     renderAdmin();
@@ -3827,7 +3861,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v31';
+const APP_BUILD='v32';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
