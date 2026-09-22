@@ -99,9 +99,14 @@ header{
 .planband{position:absolute; top:0; pointer-events:none; background:var(--plan-band);
   border-left:1px dashed var(--plan-edge); border-right:1px dashed var(--plan-edge); border-radius:10px;
   -webkit-print-color-adjust:exact; print-color-adjust:exact}
-.planband b{position:absolute; top:4px; left:50%; transform:translateX(-50%);
-  font-family:"JetBrains Mono",monospace; font-size:10px; letter-spacing:1.2px; font-weight:600;
-  color:var(--plan); opacity:.65; text-transform:uppercase; white-space:nowrap}
+/* The caption lives in the BODY_Y strip above the first row of boxes (see BODY_Y).
+   z-index is belt-and-braces: .planband is map.firstChild so every node paints after
+   it, and without this any future change to BODY_Y or the box height would quietly put
+   the caption back underneath a course box. */
+.planband b{position:absolute; top:5px; left:50%; transform:translateX(-50%); z-index:2;
+  font-family:"JetBrains Mono",monospace; font-size:9.5px; line-height:1; letter-spacing:1.2px; font-weight:600;
+  color:var(--plan); opacity:.8; text-transform:uppercase; white-space:nowrap;
+  background:rgba(255,255,255,.72); border-radius:20px; padding:2px 8px}
 .node.planned{border-style:dashed; border-color:var(--plan-edge)}
 .node.planned .grade{font-style:italic; color:var(--plan); border-color:var(--plan-edge)}
 /* PLAN-MODE header state. The word "PLANNED" used to be painted here by a ::after at
@@ -114,10 +119,7 @@ header{
 #cols .colhdr.planned b{color:var(--plan)}
 #cols .colhdr.planned .cr{color:var(--plan); background:rgba(13,148,136,.12)}
 #cols .colhdr .pm{font-style:normal; margin-right:4px}
-/* progress panel: the projected pair + the per-semester "plan" tag */
-.srow.plan b{color:var(--plan)}
-.srow.plan em{font-family:"JetBrains Mono",monospace; font-style:normal; font-size:9px; letter-spacing:.8px;
-  color:var(--plan); border:1px solid var(--plan-edge); border-radius:20px; padding:1px 5px; margin-left:5px}
+/* the Study Progress panel lives further down, beside the dock it shares with #issues */
 /* ---- ADMIN dashboard: full-screen overlay, same shape as #docview ---- */
 #adminBtn{display:none}
 /* view-as is read-only: hide every warm (mutating) tool and freeze the grade selects, so the
@@ -334,15 +336,109 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .dockpanel .sx{cursor:pointer; color:var(--ink-dim); font-size:16px; line-height:1; padding:2px 4px}
 .dockpanel .sx:hover{color:var(--ink)}
 .dockpanel .panelbody{max-height:54vh; overflow:auto}
-.sbig{font-family:"JetBrains Mono",monospace; font-size:24px; font-weight:600; color:var(--amber-ink); margin:2px 0 10px}
-.sbig small{font-size:11px; color:var(--ink-dim); font-weight:400}
-.srow{display:flex; align-items:baseline; gap:8px; padding:4px 0; border-top:1px solid rgba(28,42,58,.09); font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--ink-dim)}
-.srow span{flex:1; white-space:nowrap}
-.srow b{color:#14233a; font-size:14px; min-width:42px; text-align:right}
-.srow i{font-style:normal; color:var(--ink-dim); font-size:10px; min-width:42px; text-align:right}
-.srow.total{margin-top:3px; border-top:1px solid var(--panel-line)}
-.srow.total span{color:var(--cyan); font-weight:600}
-.srow.total b{color:var(--amber-ink)}
+/* ---- STUDY PROGRESS panel -------------------------------------------------
+   Scoped to #summary so #issues, the dock's other tenant, keeps the narrow shape.
+   The brief was "no scrolling": the content here is BOUNDED -- four tiles, a fixed
+   176-unit chart, and a semester table that grows in columns rather than rows -- so
+   at the published 9 semesters it lands near 430px and nothing scrolls. The
+   max-height/overflow below is a floor-of-last-resort for a very short window or a
+   plan grown to 13 semesters, not the normal path.
+   Series colours are the app's own, validated with the dataviz six checks against
+   this white surface (adjacent and all-pairs): see the note above gpaChart(). */
+#summary{width:584px}
+#summary .panelbody{max-height:calc(100vh - 150px); overflow:auto}
+#summary{--s-e:#175ccc; --s-m:#b45309; --s-p:#0d9488}
+
+/* headline figures. Four single numbers is a stat-tile job, not a chart. */
+.stiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(112px,1fr)); gap:7px; margin-bottom:9px}
+.stile{border:1px solid var(--panel-line); border-radius:8px; padding:6px 9px 7px; background:#fbfcfe;
+  display:flex; flex-direction:column; gap:1px; border-top:2px solid var(--panel-line)}
+.stile span{font-family:"JetBrains Mono",monospace; font-size:8.5px; letter-spacing:.9px;
+  text-transform:uppercase; color:var(--ink-dim)}
+/* proportional figures on a stat-tile value; tabular-nums belongs in the table below */
+.stile b{font-family:"Lexend",sans-serif; font-size:19px; font-weight:700; color:#14233a; line-height:1.1}
+.stile i{font-style:normal; font-family:"JetBrains Mono",monospace; font-size:8.5px; color:var(--ink-dim)}
+.stile.e{border-top-color:var(--s-e)} .stile.e b{color:var(--s-e)}
+.stile.m{border-top-color:var(--s-m)} .stile.m b{color:var(--s-m)}
+.stile.p{border-top-color:var(--s-p)} .stile.p b{color:var(--s-p)}
+
+/* a legend is always present for >= 2 series -- identity is never colour alone */
+.glegend{display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:0 0 3px 2px}
+.gl{display:flex; align-items:center; gap:5px; font-family:"JetBrains Mono",monospace;
+  font-size:9.5px; letter-spacing:.4px; color:var(--ink-dim)}
+.gl i{width:13px; height:0; border-top:2px solid currentColor; display:inline-block}
+.gl.e{color:var(--s-e)} .gl.m{color:var(--s-m)}
+.gl.p{color:var(--s-p)} .gl.p i{border-top-style:dashed}
+
+.gpawrap{position:relative; margin:0 0 10px}
+#gpaChart{width:100%; height:auto; display:block; overflow:visible}
+#gpaChart:focus-visible{outline:2px solid var(--cyan); outline-offset:2px}
+/* recessive chrome: solid hairlines, one shade off the surface */
+#gpaChart .gg{stroke:rgba(28,42,58,.10); stroke-width:1; vector-effect:non-scaling-stroke}
+#gpaChart .ax{stroke:rgba(28,42,58,.24); stroke-width:1; vector-effect:non-scaling-stroke}
+#gpaChart .gt,#gpaChart .xt{font-family:"JetBrains Mono",monospace; fill:var(--ink-dim);
+  font-size:9px; font-variant-numeric:tabular-nums}
+#gpaChart .gt{text-anchor:end}
+#gpaChart .xt{text-anchor:middle; font-size:8.5px}
+#gpaChart .xt.pl{fill:var(--s-p)}
+/* the ONE dashed rule in the chart, and it really is a threshold */
+#gpaChart .thr{stroke:var(--amber); stroke-width:1; stroke-dasharray:4 4; opacity:.55; vector-effect:non-scaling-stroke}
+#gpaChart .thrt{font-family:"JetBrains Mono",monospace; font-size:8px; fill:var(--amber-ink);
+  opacity:.75; text-anchor:end}
+#gpaChart .pband{fill:var(--plan-band)}
+/* 2px lines; non-scaling so preserveAspectRatio="none" cannot stretch them */
+#gpaChart polyline{fill:none; stroke-width:2; vector-effect:non-scaling-stroke;
+  stroke-linejoin:round; stroke-linecap:round}
+#gpaChart .e{stroke:var(--s-e)} #gpaChart .m{stroke:var(--s-m)}
+#gpaChart .p{stroke:var(--s-p); stroke-dasharray:5 4}
+#gpaChart .edot,#gpaChart .eend{fill:var(--s-e)}
+#gpaChart .mdot,#gpaChart .mend{fill:var(--s-m)}
+#gpaChart .pdot,#gpaChart .pend{fill:var(--s-p)}
+/* 2px surface ring so overlapping end markers stay separable */
+#gpaChart .eend,#gpaChart .mend,#gpaChart .pend{stroke:#fff; stroke-width:2; vector-effect:non-scaling-stroke}
+#gpaChart .elab,#gpaChart .mlab,#gpaChart .plab{font-family:"JetBrains Mono",monospace;
+  font-size:9.5px; font-weight:600; paint-order:stroke; stroke:#fff; stroke-width:3px;
+  vector-effect:non-scaling-stroke; font-variant-numeric:tabular-nums}
+#gpaChart .elab{fill:var(--s-e)} #gpaChart .mlab{fill:var(--s-m)} #gpaChart .plab{fill:var(--s-p)}
+#gpaChart .cross{stroke:rgba(28,42,58,.30); stroke-width:1; vector-effect:non-scaling-stroke}
+
+.gpatip{position:absolute; top:2px; display:none; pointer-events:none; z-index:3;
+  background:#fff; border:1px solid var(--panel-line); border-radius:7px; padding:6px 9px;
+  box-shadow:0 6px 20px rgba(20,40,80,.16); font-family:"JetBrains Mono",monospace; font-size:10px;
+  white-space:nowrap}
+.gpatip b{display:block; color:#14233a; font-size:10.5px; margin-bottom:3px}
+.gpatip b em{font-style:normal; color:var(--s-p); font-size:8.5px; letter-spacing:.6px}
+.gpatip span{display:flex; justify-content:space-between; gap:12px; color:var(--ink-dim)}
+.gpatip span b{display:inline; font-size:10px; margin:0}
+.gpatip span.e,.gpatip span.e b{color:var(--s-e)}
+.gpatip span.m,.gpatip span.m b{color:var(--s-m)}
+.gpatip span.p,.gpatip span.p b{color:var(--s-p)}
+
+/* the table view. Grows in COLUMNS, so thirteen semesters is five rows, not thirteen --
+   which is what keeps the whole panel on screen without a scrollbar. */
+.sgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:0 14px}
+.scell{display:flex; align-items:baseline; gap:6px; padding:3px 0;
+  border-top:1px solid rgba(28,42,58,.09); font-family:"JetBrains Mono",monospace;
+  font-size:11px; color:var(--ink-dim); font-variant-numeric:tabular-nums}
+.scell .sl{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.scell .sg{color:#14233a; font-size:12px; min-width:32px; text-align:right}
+.scell .sc{font-style:normal; color:var(--s-e); min-width:32px; text-align:right}
+.scell .scr{text-decoration:none; color:var(--ink-dim); font-size:9.5px; min-width:26px; text-align:right}
+.scap{font-family:"JetBrains Mono",monospace; font-size:8.5px; letter-spacing:.8px;
+  text-transform:uppercase; color:var(--ink-dim); margin:2px 0 3px 2px}
+.scap b{color:#14233a} .scap i{font-style:normal; color:var(--s-e)} .scap u{text-decoration:none}
+.scell.plan .sl,.scell.plan .sc{color:var(--s-p)}
+.scell.plan .sg{color:var(--s-p); font-style:italic}
+.scell .sl em{font-style:normal; font-size:8px; letter-spacing:.7px; color:var(--s-p);
+  border:1px solid var(--plan-edge); border-radius:20px; padding:0 4px; margin-left:3px}
+.planfoot{margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:9px; line-height:1.45;
+  color:var(--s-p)}
+
+@media (max-width:720px){
+  #summary{width:auto; left:10px; right:10px; max-width:none}
+  #summary .panelbody{max-height:calc(100vh - 120px)}
+  .sgrid{grid-template-columns:1fr}
+}
 /* ---- formal PDF document view ---- */
 #docview{position:fixed; inset:0; z-index:60; background:#d3dce8; overflow:auto; display:none; padding:30px 0}
 #docview.open{display:block}
@@ -910,7 +1006,7 @@ const elecCode=n=>(elec[n.key]&&elec[n.key].code)||n.short;          // displaye
 const elecName=n=>(elec[n.key]&&elec[n.key].name)||'';               // student-entered actual name
 
 // ---- geometry (fixed; never depends on the curriculum) ----
-const COL_W=232, BOX_W=172, BOX_H=104, GAP=44, PAD=28, BODY_Y=14;
+const COL_W=232, BOX_W=172, BOX_H=104, GAP=44, PAD=28, BODY_Y=26;
 const ROW_H=BOX_H+GAP, GUT=COL_W-BOX_W;
 const map=document.getElementById('map'), wires=document.getElementById('wires'), colsBar=document.getElementById('cols');
 const scroll=document.getElementById('scroll'), header=document.querySelector('header');
@@ -1622,23 +1718,249 @@ document.getElementById('sumBtn').addEventListener('click',()=>{
   closeIssues(); summary.classList.toggle('open',willOpen);
 });
 document.getElementById('sumClose').addEventListener('click',()=>summary.classList.remove('open'));
-function computeSummary(){
-  const d=gpaData(), m=majorGpa();
-  const rows=d.rows.map(r=>'<div class="srow'+(r.planned?' plan':'')+'"><span>'+r.label+
-    (r.planned?' <em>plan</em>':'')+'</span><b>'+r.gpa+'</b><i>'+r.den+' cr</i></div>').join('');
-  // PLAN-MODE: the projected pair only appears once a plan region exists, so a student who has
-  // never opened plan-mode sees exactly the panel they saw before.
-  const proj = hasPlan()
-    ? '<div class="srow total plan"><span>Projected GPA</span><b>'+d.proj+'</b><i>'+d.projDen+' cr</i></div>'+
-      '<div class="srow total plan"><span>Projected Major GPA</span><b>'+m.proj+'</b><i>'+m.projDen+' cr</i></div>'+
-      '<div class="planfoot">Projected includes the '+plannedSems.size+' planned semester'+
-        (plannedSems.size>1?'s':'')+' &mdash; those grades are expected, not yet earned.</div>'
-    : '';
-  document.getElementById('sumBody').innerHTML=
-    '<div class="sbig">'+d.cred+'<small> / '+TOTAL_CR+' credits studied</small></div>'+rows+
-    '<div class="srow total"><span>Total GPA</span><b>'+d.total+'</b><i>'+d.tDen+' cr</i></div>'+
-    '<div class="srow total"><span>Major GPA</span><b>'+m.gpa+'</b><i>'+m.den+' cr</i></div>'+proj;
+// ---- GPA TREND -------------------------------------------------------------
+//  One point per semester column, CUMULATIVE rather than per-semester. Two reasons:
+//  every threshold this app already checks is cumulative (> 1.75 by Y3/S1 for the
+//  internship, > 2.00 for co-op), and a cumulative line is the one that answers "has
+//  that bad semester actually been recovered yet?" -- the per-semester figure is right
+//  there in the table underneath for the other reading.
+//
+//  Three series, each plotted only where it HAS data (a gap is left as null, never
+//  drawn as zero -- a missing semester is not a 0.00 GPA):
+//    earned  -- non-planned semesters, every graded course
+//    major   -- the same span, CE-department courses only (isMajorGpa)
+//    proj    -- everything INCLUDING planned semesters. Trimmed to start at the last
+//               earned point so it reads as a continuation of `earned`, not a rival
+//               line running the full width.
+function gpaSeries(){
+  const n=PLAN.sems.length, earned=[], major=[], proj=[];
+  let eN=0,eD=0, mN=0,mD=0, pN=0,pD=0, lastE=-1, lastM=-1, lastP=-1;
+  for(let c=0;c<n;c++){
+    const planned=isPlannedCol(c);
+    let colE=0, colM=0, colP=0;                              // did THIS column contribute?
+    PLAN.nodes.filter(x=>x.col===c).forEach(x=>{
+      const r=nodeGpa(grades[x.key], x.cr);
+      pN+=r.num; pD+=r.den; colP+=r.den;                     // projected: everything counts
+      if(!planned){
+        eN+=r.num; eD+=r.den; colE+=r.den;
+        if(isMajorGpa(x)){ mN+=r.num; mD+=r.den; colM+=r.den; }
+      }
+    });
+    if(colE) lastE=c;  if(colM) lastM=c;  if(colP) lastP=c;
+    earned.push(!planned && eD ? eN/eD : null);
+    major .push(!planned && mD ? mN/mD : null);
+    proj  .push(pD ? pN/pD : null);
+  }
+  // A cumulative figure carries forward for ever once it exists, so left alone each line would
+  // run flat all the way to Y4 S2 for a first-year student -- drawing four years of data out of
+  // one semester. Cut each series after the last column that actually contributed a graded
+  // credit. A gap BETWEEN two graded semesters still bridges, which is correct: the cumulative
+  // really did carry across it.
+  for(let i=0;i<n;i++){
+    if(i>lastE) earned[i]=null;
+    if(i>lastM) major[i]=null;
+    if(i>lastP) proj[i]=null;
+  }
+  // Before the plan begins the projected line sits exactly on top of `earned`; drawing
+  // it there would be two lines saying one thing. Keep only the divergent tail.
+  const projCut = proj.map((v,i)=> (hasPlan() && lastE>=0 && i>=lastE) ? v : null);
+  // SHORT labels ("Y1 S1") for the axis and the table: nine of semLabel()'s expanded
+  // "Year 1 Semester 1" collide into an unreadable smear, and the short form is what the
+  // map's own column banner says anyway. The long form is kept for the tooltip, which has room.
+  return { labels: PLAN.sems.map(s=>s.label),
+           full: PLAN.sems.map((s,i)=>semLabel(i)),
+           planned: PLAN.sems.map((s,i)=>isPlannedCol(i)),
+           earned, major, proj:projCut };
 }
+
+// Points for the hover layer, rebuilt with the chart. Module-level so the listeners
+// attached once below keep working across every computeSummary() repaint.
+let GPA_PTS=[], GPA_HOVER=-1;
+
+// ---- the chart -------------------------------------------------------------
+//  Palette: the app's own three, checked with the dataviz validator against a white
+//  panel (all six checks pass, adjacent AND all-pairs):
+//    #175ccc cumulative   #b45309 major   #0d9488 projected
+//  The projected teal is one step up from --plan (#0f766e), which fails the chroma
+//  floor at C 0.086 and reads grey as a thin line; #0d9488 is the same hue the plan
+//  band and edge already use (rgba(13,148,136,...)), so nothing new enters the design.
+//  Identity is never colour alone: each series is also direct-labelled at its last
+//  point, the legend carries a swatch, and projected is dashed.
+function gpaChart(){
+  const S=gpaSeries(), n=S.labels.length;
+  if(!n) { GPA_PTS=[]; return ''; }
+  const W=520, H=176, L=34, R=14, T=10, B=42;    // B holds the x-axis band, so no nested scroll
+  const px = i => n===1 ? L+(W-L-R)/2 : L + i*(W-L-R)/(n-1);
+  const py = g => (H-B) - (g/4)*((H-B)-T);
+  const has = v => v!==null && v!==undefined && isFinite(v);
+
+  // a series becomes one or more polylines so a gap never closes itself with a straight
+  // line across semesters that have no grades in them
+  const path = arr => {
+    const runs=[]; let cur=[];
+    arr.forEach((v,i)=>{ if(has(v)) cur.push(px(i).toFixed(1)+','+py(v).toFixed(1));
+                         else { if(cur.length>1) runs.push(cur); cur=[]; } });
+    if(cur.length>1) runs.push(cur);
+    return runs;
+  };
+  const line = (arr, cls) => path(arr).map(r=>'<polyline class="'+cls+'" points="'+r.join(' ')+'"/>').join('')
+    // a lone point has no polyline to live on, so give it a marker of its own
+    + arr.map((v,i)=>has(v) && !has(arr[i-1]) && !has(arr[i+1])
+        ? '<circle class="'+cls+'dot" cx="'+px(i).toFixed(1)+'" cy="'+py(v).toFixed(1)+'" r="3.5"/>' : '').join('');
+  const lastOf = arr => { for(let i=arr.length-1;i>=0;i--) if(has(arr[i])) return i; return -1; };
+
+  // gridlines: solid hairlines, one shade off the surface -- never dashed, that reads
+  // as a threshold. The ONE dashed rule here is the 2.00 line, which IS a threshold.
+  let g='';
+  for(let v=0;v<=4;v++){
+    g+='<line class="gg" x1="'+L+'" y1="'+py(v).toFixed(1)+'" x2="'+(W-R)+'" y2="'+py(v).toFixed(1)+'"/>'+
+       '<text class="gt" x="'+(L-7)+'" y="'+(py(v)+3.5).toFixed(1)+'">'+v+'</text>';
+  }
+  g+='<line class="thr" x1="'+L+'" y1="'+py(2).toFixed(1)+'" x2="'+(W-R)+'" y2="'+py(2).toFixed(1)+'"/>'+
+     '<text class="thrt" x="'+(W-R-2)+'" y="'+(py(2)-4).toFixed(1)+'">2.00 co-op min</text>';
+
+  // x labels: every semester when they fit, every other one once the plan has grown
+  const step = n>10 ? 2 : 1;
+  let xl='';
+  S.labels.forEach((lab,i)=>{ if(i%step) return;
+    xl+='<text class="xt'+(S.planned[i]?' pl':'')+'" x="'+px(i).toFixed(1)+'" y="'+(H-B+15)+'">'+esc(lab)+'</text>'; });
+
+  // the planned span gets the same wash as the map, so the two read as one idea
+  let band='';
+  if(hasPlan()){
+    const first=S.planned.indexOf(true);
+    if(first>=0){
+      const x0=Math.max(L, px(first)-((W-L-R)/Math.max(1,n-1))/2);
+      band='<rect class="pband" x="'+x0.toFixed(1)+'" y="'+T+'" width="'+(W-R-x0).toFixed(1)+'" height="'+(H-B-T)+'"/>';
+    }
+  }
+
+  // Direct labels on the LAST point of each series -- selective, never one per point.
+  // Cumulative and major almost always end in the same column (the last earned semester),
+  // so their two labels land within a few units of each other and overprint. Lay each
+  // column's labels out top-down with a minimum gap instead of letting them collide.
+  const ends=[];
+  const addEnd=(arr,cls)=>{ const i=lastOf(arr); if(i>=0) ends.push({i,cls,v:arr[i],x:px(i),y:py(arr[i])}); };
+  addEnd(S.earned,'e'); addEnd(S.major,'m'); if(hasPlan()) addEnd(S.proj,'p');
+  let tags='';
+  ends.forEach(e=>{ tags+='<circle class="'+e.cls+'end" cx="'+e.x.toFixed(1)+'" cy="'+e.y.toFixed(1)+'" r="4"/>'; });
+  const byX={};
+  ends.forEach(e=>{ const k=e.x.toFixed(1); (byX[k]=byX[k]||[]).push(e); });
+  Object.keys(byX).forEach(k=>{
+    let prev=-1e9;
+    byX[k].sort((a,b)=>a.y-b.y).forEach(e=>{
+      let ty=e.y-9; if(ty-prev<11) ty=prev+11; prev=ty;
+      const anchor = e.i>n-2 ? 'end' : 'middle';
+      tags+='<text class="'+e.cls+'lab" x="'+e.x.toFixed(1)+'" y="'+ty.toFixed(1)+'" text-anchor="'+anchor+'">'+e.v.toFixed(2)+'</text>';
+    });
+  });
+
+  GPA_PTS = S.labels.map((lab,i)=>({ x:px(i), lab, full:S.full[i], planned:S.planned[i],
+    e:has(S.earned[i])?S.earned[i]:null, m:has(S.major[i])?S.major[i]:null,
+    p:has(S.proj[i])?S.proj[i]:null }));
+
+  // NO preserveAspectRatio="none": stretching the viewBox to the panel width would stretch
+  // every label and numeral with it. Uniform scaling instead -- the height follows from the
+  // viewBox ratio, so the x-axis band is always included and the card never grows an inner
+  // scrollbar.
+  return '<div class="gpawrap">'+
+    '<svg id="gpaChart" viewBox="0 0 '+W+' '+H+'" role="img" tabindex="0" '+
+      'aria-label="Cumulative GPA by semester. The table below lists every value.">'+
+      band+g+
+      '<line class="ax" x1="'+L+'" y1="'+(H-B)+'" x2="'+(W-R)+'" y2="'+(H-B)+'"/>'+
+      xl+
+      line(S.proj,'p')+line(S.earned,'e')+line(S.major,'m')+
+      tags+
+      '<line id="gpaCross" class="cross" x1="0" y1="'+T+'" x2="0" y2="'+(H-B)+'" style="display:none"/>'+
+    '</svg><div id="gpaTip" class="gpatip"></div></div>';
+}
+
+function computeSummary(){
+  const d=gpaData(), m=majorGpa(), S=gpaSeries();
+  // headline figures as tiles: four single numbers, which is a stat-tile job, not a chart
+  const tile=(lab,val,sub,cls)=>'<div class="stile'+(cls?' '+cls:'')+'"><span>'+lab+'</span><b>'+val+'</b><i>'+sub+'</i></div>';
+  const tiles='<div class="stiles">'+
+    tile('Credits', d.cred, 'of '+TOTAL_CR, '')+
+    tile('Total GPA', d.total, d.tDen+' cr', 'e')+
+    tile('Major GPA', m.gpa, m.den+' cr', 'm')+
+    (hasPlan() ? tile('Projected', d.proj, d.projDen+' cr', 'p') : '')+
+    '</div>';
+
+  const legend='<div class="glegend">'+
+    '<span class="gl e"><i></i>Cumulative</span>'+
+    '<span class="gl m"><i></i>Major</span>'+
+    (hasPlan()?'<span class="gl p"><i></i>Projected</span>':'')+
+    '</div>';
+
+  // the table view: every plotted value in text, so nothing is reachable only by hover
+  const cells=d.rows.map((r,i)=>{
+    const cum=S.earned[i], pr=S.proj[i];
+    const cumTxt = r.planned ? (pr!=null?pr.toFixed(2):'—') : (cum!=null?cum.toFixed(2):'—');
+    return '<div class="scell'+(r.planned?' plan':'')+'">'+
+      '<span class="sl">'+esc(S.labels[i])+(r.planned?' <em>plan</em>':'')+'</span>'+
+      '<b class="sg">'+r.gpa+'</b><i class="sc">'+cumTxt+'</i><u class="scr">'+r.den+'</u></div>';
+  }).join('');
+  // ONE caption above the grid. A header CELL would sit in the first of the three columns
+  // the table flows into and silently label only that one.
+  const grid='<div class="scap">Per semester &mdash; <b>GPA</b> &middot; <i>cumulative</i> &middot; <u>credits</u></div>'+
+    '<div class="sgrid">'+cells+'</div>';
+
+  const foot = hasPlan()
+    ? '<div class="planfoot">Projected includes the '+plannedSems.size+' planned semester'+
+      (plannedSems.size>1?'s':'')+' &mdash; those grades are expected, not yet earned.</div>' : '';
+
+  document.getElementById('sumBody').innerHTML = tiles+legend+gpaChart()+grid+foot;
+}
+
+// ---- chart hover / keyboard ------------------------------------------------
+//  Delegated from #sumBody once, so the listeners survive every computeSummary()
+//  repaint without being re-attached (and without piling up).
+function gpaShow(i){
+  const svg=document.getElementById('gpaChart'), tip=document.getElementById('gpaTip'),
+        cross=document.getElementById('gpaCross');
+  if(!svg||!tip||!cross||!GPA_PTS.length) return;
+  if(i<0||i>=GPA_PTS.length){ gpaHide(); return; }
+  GPA_HOVER=i;
+  const p=GPA_PTS[i], box=svg.getBoundingClientRect(), scale=box.width/520;
+  cross.setAttribute('x1',p.x); cross.setAttribute('x2',p.x); cross.style.display='';
+  const num=v=>v==null?'&mdash;':v.toFixed(2);
+  tip.innerHTML='<b>'+esc(p.full||p.lab)+(p.planned?' <em>plan</em>':'')+'</b>'+
+    '<span class="e">Cumulative <b>'+num(p.e)+'</b></span>'+
+    '<span class="m">Major <b>'+num(p.m)+'</b></span>'+
+    (p.p!=null?'<span class="p">Projected <b>'+num(p.p)+'</b></span>':'');
+  tip.style.display='block';
+  const left=Math.max(0, Math.min(p.x*scale-tip.offsetWidth/2, box.width-tip.offsetWidth));
+  tip.style.left=left+'px';
+}
+function gpaHide(){
+  const tip=document.getElementById('gpaTip'), cross=document.getElementById('gpaCross');
+  if(tip) tip.style.display='none';
+  if(cross) cross.style.display='none';
+  GPA_HOVER=-1;
+}
+function gpaNearest(clientX){
+  const svg=document.getElementById('gpaChart'); if(!svg||!GPA_PTS.length) return -1;
+  const box=svg.getBoundingClientRect(), vx=(clientX-box.left)/(box.width/520);
+  let best=-1, bd=1e9;
+  GPA_PTS.forEach((p,i)=>{ const dd=Math.abs(p.x-vx); if(dd<bd){ bd=dd; best=i; } });
+  return best;   // nearest-point, so the hit target is a whole column, not a 4px dot
+}
+(function wireGpaChart(){
+  const body=document.getElementById('sumBody'); if(!body) return;
+  body.addEventListener('mousemove',e=>{ if(e.target.closest&&e.target.closest('.gpawrap')) gpaShow(gpaNearest(e.clientX)); });
+  body.addEventListener('mouseleave',gpaHide);
+  body.addEventListener('touchstart',e=>{ if(e.target.closest&&e.target.closest('.gpawrap') && e.touches[0]) gpaShow(gpaNearest(e.touches[0].clientX)); },{passive:true});
+  // keyboard reaches exactly what hover does
+  body.addEventListener('keydown',e=>{
+    if(!e.target.id || e.target.id!=='gpaChart') return;
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+      e.preventDefault();
+      const start = GPA_HOVER<0 ? (e.key==='ArrowRight'?-1:GPA_PTS.length) : GPA_HOVER;
+      gpaShow(Math.max(0,Math.min(GPA_PTS.length-1, start+(e.key==='ArrowRight'?1:-1))));
+    } else if(e.key==='Escape') gpaHide();
+  });
+  body.addEventListener('focusout',e=>{ if(e.target.id==='gpaChart') gpaHide(); });
+})();
 
 // ===========================================================================
 //  INTERNSHIP / CO-OP ELIGIBILITY
@@ -4144,7 +4466,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v34';
+const APP_BUILD='v35';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
