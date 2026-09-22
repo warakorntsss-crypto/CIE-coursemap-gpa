@@ -9,7 +9,7 @@
 // the browser's own HTTP cache. They now come from the network whenever the
 // device is online, and fall back to the cache offline. Icons and the manifest
 // stay cache-first (they rarely change and are the slow part of a cold start).
-const CACHE = "coursemaps-cie-shell-v30";
+const CACHE = "coursemaps-cie-shell-v31";
 const SHELL = [
   "./", "./index.html", "./data.js", "./manifest.json",
   "./icon-192.png", "./icon-512.png"
@@ -37,10 +37,16 @@ self.addEventListener("fetch", (e) => {
   if (url.pathname.startsWith("/api/")) return;
 
   if (e.request.mode === "navigate" || isFresh(url)) {
+    // {cache:"reload"} here for the SAME reason as in install: GitHub Pages serves the shell
+    // with Cache-Control: max-age=600, so a plain fetch() can be answered from the BROWSER's
+    // own HTTP cache and hand back a pre-deploy index.html or data.js -- which then got
+    // written into the current cache below and outlived the 600s. That produced a MIXED
+    // build (new index.html calling API.setCustom against an old data.js that has no such
+    // method), which is not a theoretical risk: it was observed live right after v30.
     e.respondWith(
-      fetch(e.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
+      fetch(new Request(e.request, { cache: "reload" })).then((res) => {
+        // never store an error page as if it were the shell
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
         return res;
       }).catch(() => caches.match(e.request).then((hit) =>
         hit || caches.match("./index.html")))
@@ -50,8 +56,7 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     caches.match(e.request).then((hit) =>
       hit || fetch(e.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy));
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
         return res;
       }).catch(() => hit))
   );

@@ -2774,7 +2774,8 @@ function ensureRetake(key){
 function autoShiftApply(headKey, madeKeys, oldCol, xBefore){
   const res=autoShiftPlan(), shifts=res.shifts, keys=Object.keys(shifts);
   const prev={};                                    // for the toast's undo: the moves{} value each key had BEFORE
-  keys.forEach(k=>{ prev[k]=moves[k]; moves[k]=shifts[k]; syncExtra(k); });
+  keys.forEach(k=>{ prev[k]=moves[k]; moves[k]=shifts[k]; });
+  syncExtrasBulk(keys);                             // ONE request for the whole cascade -- see syncExtrasBulk
   if(keys.length){
     reconcileSems();                                // EXTRA YEARS: raise the ceiling to whatever the shifted columns now need...
     if(extraSems!==xBefore) syncSems();             // ...and persist only when it actually grew. No trimExtraSems(): a shift only moves
@@ -2816,10 +2817,8 @@ function autoShiftSweep(){
 // The GRADE is left alone: the W/F is the student's record, only the shift is being taken back.
 // Not a general history -- once the toast is gone, the Recap panel's per-row revert is the tool.
 function undoAutoShift(madeKeys, prev){
-  Object.keys(prev).forEach(k=>{
-    if(prev[k]==null) delete moves[k]; else moves[k]=prev[k];
-    syncExtra(k);                                   // writes "" when cleared -- see syncExtra
-  });
+  Object.keys(prev).forEach(k=>{ if(prev[k]==null) delete moves[k]; else moves[k]=prev[k]; });
+  syncExtrasBulk(Object.keys(prev));                // one request back, writing "" for each cleared move
   // newest first, so removing a chain never re-links a re-take onto one already deleted
   madeKeys.slice().reverse().forEach(k=>{ if(customs[k]) removeCustomCourse(k); });   // rebuilds + trims extraSems on its own
   if(!madeKeys.length){ trimExtraSems(); rebuildMap(true); }
@@ -3151,6 +3150,32 @@ function syncGrade(key){          // grade -> the course's per-semester tab
     API.setGrade(CURRENT.student_id, semOf(key), key, grades[key]||"")
       .catch(err=>{ console.warn("setGrade failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
   },350);
+}
+// the one `extras` row payload, shared by the single and bulk writers
+function extraPayload(key){
+  const e=elec[key]||{};
+  return { starred: stars[key]?"TRUE":"FALSE", note: notes[key]||"", elec_code: e.code||"", elec_name: e.name||"",
+           moved_col: moves[key]==null ? "" : String(moves[key]) };
+}
+// AUTO-SHIFT: one request for a whole batch of courses. A cascade can move a dozen courses
+// from one keystroke, and a dozen separate POSTs all queue behind the backend's script lock
+// until the last ones exceed its waitLock timeout -- which is what surfaced as "sync failed"
+// on a cascade that was otherwise fine. Cancels each key's pending per-key timer first, so a
+// row is never written twice.
+function syncExtrasBulk(keys){
+  if(!keys || !keys.length) return; writeCache();
+  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  keys.forEach(k=>clearTimeout(_eTimers[k]));
+  const sid=CURRENT.student_id, items=keys.map(k=>({course_key:k, data:extraPayload(k)}));
+  API.setExtras(sid, items).catch(err=>{
+    // a backend that has not been redeployed yet has no setExtras. Fall back to the per-key
+    // path, but SEQUENTIALLY -- firing them in parallel is the pile-up this exists to avoid.
+    if(/unknown action/i.test(String((err&&err.message)||''))){
+      return items.reduce((p,it)=>p.then(()=>API.setExtra(sid, it.course_key, it.data)), Promise.resolve())
+        .catch(e2=>{ console.warn("setExtra (bulk fallback) failed:",e2); showBanner("⚠ sync failed — saved on this device only"); });
+    }
+    console.warn("setExtras failed:",err); showBanner("⚠ sync failed — saved on this device only");
+  });
 }
 function syncExtra(key){          // star / note / elective overrides -> extras tab
   if(!key) return; writeCache();
@@ -3802,7 +3827,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v30';
+const APP_BUILD='v31';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){

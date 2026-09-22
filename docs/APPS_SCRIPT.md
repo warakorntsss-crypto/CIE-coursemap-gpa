@@ -43,6 +43,7 @@ Open the Sheet → **Extensions → Apps Script**. Delete `Code.gs`, paste the w
  * POST {action:"register",student_id, name, password, advisor} -> {ok,profile} | {ok:false,error}
  * POST {action:"setGrade",student_id, sem, course_key, grade}  -> {ok:true}
  * POST {action:"setExtra",student_id, course_key, data:{...}}   -> {ok:true}
+ * POST {action:"setExtras",student_id, items:[{course_key,data},...]} -> {ok:true,written,updated,added}
  * POST {action:"setProfile",student_id, data:{name,advisor_comment,track,extra_sems,plan_sems,auto_shift}} -> {ok:true}
  * POST {action:"setExtra",  student_id, course_key, remove:true}                -> {ok:true}
  * POST {action:"setCustom", student_id, course_key, data:{code,name,cr,cat,col,major_gpa,retake_of,attempt}} -> {ok:true}
@@ -90,21 +91,28 @@ function doGet(e) {
 
 function doPost(e) {
   var lock = LockService.getScriptLock();
-  lock.waitLock(30000);
+  // waitLock() THROWS when the queue outlasts the timeout, and it used to sit outside this
+  // try -- so a busy moment returned an Apps Script HTML error page instead of JSON, the
+  // client's r.json() blew up, and the student saw "sync failed" with no way to tell a real
+  // fault from simple contention. Inside the try it comes back as {error:"..."} like
+  // everything else. releaseLock() is only safe if we actually took it, hence `held`.
+  var held = false;
   try {
+    lock.waitLock(30000); held = true;
     var b = JSON.parse((e && e.postData && e.postData.contents) || "{}");
     switch (b.action) {
       case "login":      return jsonOut(login(b));
       case "register":   return jsonOut(register(b));
       case "setGrade":   return jsonOut(setGrade(b));
       case "setExtra":   return jsonOut(setExtra(b));
+      case "setExtras":  return jsonOut(setExtras(b));
       case "setProfile": return jsonOut(setProfile(b));
       case "setCustom":  return jsonOut(setCustom(b));
       default:           return jsonOut({ error: "unknown action: " + b.action });
     }
   } catch (err) {
     return jsonOut({ error: String(err) });
-  } finally { lock.releaseLock(); }
+  } finally { if (held) lock.releaseLock(); }
 }
 
 /* ---------- generic helpers ---------- */
@@ -278,6 +286,44 @@ function setExtra(b) {
   if (r === -1) { appendObj(sh, headers, fields); return { ok: true }; }
   for (var k in fields) { var c = headers.indexOf(k); if (c !== -1) sh.getRange(r, c + 1).setValue(fields[k]); }
   return { ok: true };
+}
+
+// Bulk form of setExtra: {action:"setExtras", student_id, items:[{course_key, data}, ...]}.
+// AUTO-SHIFT can move a dozen courses from one keystroke, and a dozen separate POSTs each
+// queue behind the script lock -- enough of them and the last ones blow waitLock's 30s, so
+// the student sees "sync failed" for a cascade that was perfectly fine. This does the whole
+// batch in ONE request, ONE lock, and ONE read + ONE write of the tab, instead of a
+// getRange().setValue() per field (setExtra does eight of those per course).
+// Existing rows are updated in place and keep their position; new ones are appended.
+// SAME CONTRACT as setExtra: a full-row upsert, NOT a merge -- a field absent from `data` is
+// written blank. Send the whole payload (index.html's extraPayload() always does), or you will
+// clear that course's star/note. Columns this action does not own are preserved untouched.
+function setExtras(b) {
+  var items = b.items || [];
+  if (!items.length) return { ok: true, written: 0 };
+  var sh = getSheet("extras"), headers = headersOf(sh);
+  var width = headers.length, lastRow = sh.getLastRow();
+  // one read of the whole tab, then an id -> row-offset index
+  var values = (lastRow >= 2) ? sh.getRange(2, 1, lastRow - 1, width).getValues() : [];
+  var idCol = headers.indexOf("id"), at = {};
+  if (idCol !== -1) for (var i = 0; i < values.length; i++) at[String(values[i][idCol])] = i;
+
+  var added = 0, updated = 0;
+  for (var n = 0; n < items.length; n++) {
+    var it = items[n] || {}, d = it.data || {};
+    var id = String(b.student_id) + "_" + String(it.course_key);
+    var fields = { id: id, student_id: b.student_id, course_key: it.course_key,
+      starred: d.starred || "", note: d.note || "", elec_code: d.elec_code || "", elec_name: d.elec_name || "",
+      moved_col: (d.moved_col === 0 || d.moved_col) ? d.moved_col : "" };
+    var idx = at[id], row = new Array(width);
+    // any column this action does not own (a header added later) keeps whatever it had
+    for (var c = 0; c < width; c++) row[c] = (idx === undefined) ? "" : values[idx][c];
+    for (var k in fields) { var kc = headers.indexOf(k); if (kc !== -1) row[kc] = fields[k]; }
+    if (idx === undefined) { at[id] = values.length; values.push(row); added++; }
+    else { values[idx] = row; updated++; }
+  }
+  if (values.length) sh.getRange(2, 1, values.length, width).setValues(values);
+  return { ok: true, written: items.length, updated: updated, added: added };
 }
 
 // Returns the `custom` tab, creating it if it is not there yet, so a write works even on a

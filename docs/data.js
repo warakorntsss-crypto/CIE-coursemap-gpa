@@ -53,6 +53,15 @@ window.API = {
     return apiPost({ action: "setExtra", student_id, course_key, data });
   },
 
+  // Bulk setExtra: items = [{course_key, data}, ...]. The auto-shift cascade moves a dozen
+  // courses at once, and a dozen separate POSTs all queue behind the backend's script lock
+  // until the last ones time out. One request, one lock, one write.
+  // Throws "unknown action: setExtras" against a backend that has not been redeployed yet —
+  // index.html catches that and falls back to per-key setExtra.
+  setExtras(student_id, items) {
+    return apiPost({ action: "setExtras", student_id, items });
+  },
+
   // removes the extras row entirely. Used when a student-added course is deleted: upserting a
   // blank row instead (the only option before) left an empty row behind permanently.
   delExtra(student_id, course_key) {
