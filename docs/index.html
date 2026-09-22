@@ -18,7 +18,8 @@
   /* PLAN-MODE. Teal is the one cool hue not already spoken for: the six category fills are
      blue/green/orange/yellow/grey/violet, the four grade states green/red/grey/blue, and
      starred + active buttons are amber. Colour is never the ONLY cue -- a planned column also
-     carries a dashed edge, a PLANNED tag and italic grades, so it survives a greyscale print. */
+     carries a dashed edge, a diamond in its credit pill, a PLANNED caption on the band and
+     italic grades, so it survives a greyscale print. */
   --plan:#0f766e; --plan-band:rgba(13,148,136,.085); --plan-edge:rgba(13,148,136,.45);
 }
 *{box-sizing:border-box}
@@ -31,42 +32,66 @@ body{
   background-size:120px 120px,120px 120px,24px 24px,24px 24px;
   -webkit-text-size-adjust:100%;
 }
-/* ---- top bar ---- */
+/* ---- top bar ----
+   Two rows by design: identity + status on top, the toolbar underneath. Nothing assumes how
+   tall that comes out -- a ResizeObserver feeds the measured height into --bar (see fitBar),
+   and #scroll offsets by it. Edit mode revealing two more buttons, plan-mode, a long student
+   name or a legend that wraps therefore push the map DOWN instead of being painted over it,
+   which is exactly what the old resize-only measurement got wrong. */
 header{
   position:fixed; top:0; left:0; right:0; z-index:30;
-  display:flex; align-items:center; gap:14px 18px; flex-wrap:wrap;
-  padding:10px 18px; background:linear-gradient(180deg,rgba(255,255,255,.97),rgba(255,255,255,.92));
-  border-bottom:1px solid var(--panel-line); backdrop-filter:blur(4px);
+  display:flex; flex-direction:column; gap:7px;
+  padding:9px 16px 8px;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.94));
+  border-bottom:1px solid var(--panel-line); backdrop-filter:blur(6px);
+  box-shadow:0 1px 10px rgba(20,40,80,.05);
 }
-.brand{display:flex; flex-direction:column; line-height:1.1}
-.brand b{font-family:"Lexend",sans-serif; font-weight:700; font-size:19px; letter-spacing:.2px; color:#14233a}
-.brand small{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--ink-dim); letter-spacing:.8px}
-.legend{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
-.lg{display:flex; align-items:center; gap:6px; font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim);
-  cursor:pointer; user-select:none; border:1px solid transparent; border-radius:20px; padding:4px 9px; transition:.15s}
+.hrow{display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap}
+/* title and the course meta share one baseline instead of stacking into two lines */
+.brand{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; line-height:1.15}
+.brand b{font-family:"Lexend",sans-serif; font-weight:700; font-size:17px; letter-spacing:.2px; color:#14233a; white-space:nowrap}
+.brand small{font-family:"JetBrains Mono",monospace; font-size:9.5px; color:var(--ink-dim); letter-spacing:.7px; white-space:nowrap}
+.hmeta{display:flex; align-items:center; gap:14px; margin-left:auto; flex-wrap:wrap}
+.legend{display:flex; gap:4px; flex-wrap:wrap; align-items:center}
+.lg{display:flex; align-items:center; gap:5px; font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--ink-dim);
+  cursor:pointer; user-select:none; border:1px solid transparent; border-radius:20px; padding:3px 8px; transition:.15s;
+  white-space:nowrap}   /* the strip scrolls sideways on a phone; a chip must never wrap mid-label */
 .lg:hover{border-color:var(--panel-line); background:#fff}
 .lg.off{opacity:.38; text-decoration:line-through}
-.lg i{width:11px; height:11px; border-radius:3px; display:inline-block; border:1px solid rgba(0,0,0,.18)}
-.tools{display:flex; align-items:center; gap:9px; margin-left:auto; flex-wrap:wrap}
-.tools input[type=search]{background:var(--btn-bg,#fff); border:1px solid var(--panel-line); color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:12px; padding:8px 10px; border-radius:6px; width:150px}
+.lg i{width:9px; height:9px; border-radius:2.5px; display:inline-block; border:1px solid rgba(0,0,0,.18)}
+/* Wraps rather than scrolling sideways: a button that has slid out of sight is a button the
+   student will not find, and edit mode reveals two of them. Wrapping changes the header height,
+   which is fine BECAUSE --bar is remeasured (fitBar) -- it is the measurement that was broken,
+   not the wrapping. */
+.tools{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+/* the four groups read as groups: hairline rules instead of a 14-button run-on */
+.toolgrp{display:flex; align-items:center; gap:5px; flex:0 0 auto;
+  padding-right:8px; border-right:1px solid var(--panel-line)}
+.tools>.toolgrp:last-of-type{border-right:0; padding-right:0}
+.tools input[type=search]{background:var(--btn-bg,#fff); border:1px solid var(--panel-line); color:var(--ink); font-family:"JetBrains Mono",monospace; font-size:11px; padding:6px 9px; border-radius:6px; width:132px}
 .tools input::placeholder{color:#5f7187}
-.btn{font-family:"JetBrains Mono",monospace; font-size:11px; letter-spacing:.5px; background:var(--btn-bg,#fff); color:#44566b; border:1px solid var(--panel-line); padding:8px 11px; border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap}
+.btn{font-family:"JetBrains Mono",monospace; font-size:10.5px; letter-spacing:.4px; background:var(--btn-bg,#fff); color:#44566b; border:1px solid var(--panel-line); padding:6px 9px; border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap}
 .btn:hover{color:var(--ink); border-color:var(--cyan)}
 .btn.on{color:#42300a; background:#fbbf24; border-color:#f59e0b; font-weight:600}
 .btn:focus-visible,.tools input[type=search]:focus-visible{outline:2px solid var(--cyan); outline-offset:1px; position:relative; z-index:2}
-.counts{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--ink-dim); white-space:nowrap}
+.counts{font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--ink-dim); white-space:nowrap}
 .counts b{color:var(--amber-ink)}
 /* ---- scroll + map ---- */
 #scroll{position:absolute; left:0; right:0; bottom:0; top:var(--bar); overflow:auto; -webkit-overflow-scrolling:touch}
-#cols{position:sticky; top:0; height:56px; z-index:12; pointer-events:none}
+/* The semester banner. One row -- label beside a credit pill -- rather than two stacked lines,
+   which buys back 10px of map on every screen and leaves the box room to carry the plan-mode
+   state without a third line crammed into it. */
+#cols{position:sticky; top:0; height:46px; z-index:12; pointer-events:none}
 #cols .colhdr{
-  position:absolute; top:8px; height:42px; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  border:1px solid var(--panel-line); border-radius:7px;
-  background:linear-gradient(180deg,#ffffff,#f6f9fd); box-shadow:0 4px 14px rgba(20,40,80,.10);
+  position:absolute; top:6px; height:34px; display:flex; flex-direction:row; align-items:center;
+  justify-content:center; gap:8px; overflow:hidden;
+  border:1px solid var(--panel-line); border-radius:9px;
+  background:linear-gradient(180deg,#ffffff,#f4f8fd); box-shadow:0 3px 12px rgba(20,40,80,.09);
   font-family:"Lexend",sans-serif;
 }
-#cols .colhdr b{font-size:15px; font-weight:700; letter-spacing:.6px; color:#14233a; text-transform:uppercase}
-#cols .colhdr span{font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--cyan)}
+#cols .colhdr b{font-size:13.5px; font-weight:700; letter-spacing:.5px; color:#14233a; text-transform:uppercase; white-space:nowrap}
+#cols .colhdr .cr{font-family:"JetBrains Mono",monospace; font-size:9.5px; color:var(--cyan); white-space:nowrap;
+  background:rgba(23,92,204,.08); border-radius:20px; padding:2px 7px}
 #map{position:relative}
 /* PLAN-MODE: one band per contiguous run of planned columns. First child of #map, so it sits
    under the wires and the boxes without needing a negative z-index (which would drop it behind
@@ -79,10 +104,16 @@ header{
   color:var(--plan); opacity:.65; text-transform:uppercase; white-space:nowrap}
 .node.planned{border-style:dashed; border-color:var(--plan-edge)}
 .node.planned .grade{font-style:italic; color:var(--plan); border-color:var(--plan-edge)}
-#cols .colhdr.planned{border-color:var(--plan-edge); background:linear-gradient(180deg,#f2fbfa,#e9f6f5)}
+/* PLAN-MODE header state. The word "PLANNED" used to be painted here by a ::after at
+   bottom:-1px -- hanging outside a 42px box that already held two lines of text -- while the
+   band directly underneath said "planned" as well. The word now lives ONLY on the band, and
+   the header carries the state as colour + a dashed edge + the diamond in the credit pill.
+   That is still three cues without colour, so a greyscale print reads the same. */
+#cols .colhdr.planned{border-color:var(--plan-edge); border-style:dashed;
+  background:linear-gradient(180deg,#f5fbfa,#e9f6f5)}
 #cols .colhdr.planned b{color:var(--plan)}
-#cols .colhdr.planned::after{content:"PLANNED"; position:absolute; bottom:-1px; left:50%; transform:translateX(-50%);
-  font-family:"JetBrains Mono",monospace; font-size:7.5px; letter-spacing:1px; color:var(--plan); opacity:.8}
+#cols .colhdr.planned .cr{color:var(--plan); background:rgba(13,148,136,.12)}
+#cols .colhdr .pm{font-style:normal; margin-right:4px}
 /* progress panel: the projected pair + the per-semester "plan" tag */
 .srow.plan b{color:var(--plan)}
 .srow.plan em{font-family:"JetBrains Mono",monospace; font-style:normal; font-size:9px; letter-spacing:.8px;
@@ -243,7 +274,7 @@ body.isadmin #adminBtn{display:block}
 #map.codeonly .node>.code{font-size:18px; font-weight:700}
 #map.codeonly .node>.ecode{font-size:18px; width:auto; max-width:100%; text-align:center; border-color:transparent; background:transparent}
 /* FIT view: abbreviate the year-box credit ("21 Credit" -> "21 CR") */
-#cols .colhdr .u-short{display:none}
+#cols .colhdr .u-short{display:none}   /* .u-long/.u-short live inside .cr and inherit its size */
 #cols.codeonly .colhdr .u-long{display:none}
 #cols.codeonly .colhdr .u-short{display:inline}
 /* wires */
@@ -424,10 +455,10 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 /* ---- mobile ---- */
 /* phone, either orientation: tighter year header + header that scrolls away on scroll-down */
 @media (max-width:720px),(max-height:520px){
-  #cols{height:48px}
-  #cols .colhdr{top:2px; height:42px; flex-direction:row; gap:7px}  /* slightly thicker; year + credit on one row */
-  #cols .colhdr b{font-size:10.5px}     /* year label, 25% smaller than before (14px) */
-  #cols .colhdr span{font-size:9px}     /* credit sits to the right of the year */
+  #cols{height:40px}
+  #cols .colhdr{top:2px; height:32px; gap:6px}   /* same one-row shape as desktop, just smaller */
+  #cols .colhdr b{font-size:10.5px}
+  #cols .colhdr .cr{font-size:8.5px; padding:1px 5px}
   header{position:static}   /* not fixed: top bar scrolls away with the content */
   #scroll{top:0}            /* header now lives at the top of the scroll flow; year box stays sticky */
 }
@@ -436,8 +467,9 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
   .brand b{font-size:16px} .brand small{font-size:9px}
   .legend{order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px}
   .lg{flex:0 0 auto}
-  .tools{margin-left:0; width:100%; justify-content:space-between}
-  .tools input[type=search]{flex:1; min-width:0; width:auto}
+  .hmeta{margin-left:0; order:2; gap:10px}
+  .tools input[type=search]{flex:1 1 96px; min-width:0; width:auto}
+  .toolgrp{padding-right:6px; gap:4px}
   #panel{width:100%; max-width:100%}
   .hint{display:none}
   #zoom button{width:44px; height:44px}
@@ -704,11 +736,18 @@ body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bo
 <div id="banner"></div>
 <div id="scroll">
   <header>
-    <div class="brand">
-      <b>Civil Engineering &middot; Course Map</b>
-      <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; <span id="brandCr">149</span> Credit &nbsp;//&nbsp; <span id="brandTrack">Regular</span></small>
+    <div class="hrow">
+      <div class="brand">
+        <b>Civil Engineering &middot; Course Map</b>
+        <small>B.ENG INTERNATIONAL &nbsp;//&nbsp; CIE 2568 &nbsp;//&nbsp; <span id="brandCr">149</span> Credit &nbsp;//&nbsp; <span id="brandTrack">Regular</span></small>
+      </div>
+      <div class="legend" id="legend"></div>
+      <!-- who you are + what is selected: status, not controls, so it sits with the title -->
+      <div class="hmeta">
+        <span class="counts" id="counts"></span>
+        <span id="whoami"></span>
+      </div>
     </div>
-    <div class="legend" id="legend"></div>
     <div class="tools">
       <!-- Find: cool, look-only -->
       <div class="toolgrp find cool">
@@ -743,8 +782,6 @@ body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bo
         <button class="btn" id="pdfBtn">↓ save pdf</button>
         <button class="btn" id="adminBtn" title="Department dashboard — GPA, plan adherence, internship &amp; co-op eligibility">&#9636; admin</button>
       </div>
-      <span class="counts" id="counts"></span>
-      <span id="whoami"></span>
     </div>
   </header>
   <div id="cols"></div>
@@ -1244,8 +1281,12 @@ function rebuildMap(relayout){
   PLAN.sems.forEach((s,i)=>{
     const h=document.createElement('div'); h.className='colhdr';
     h.style.left=(PAD+i*COL_W)+"px"; h.style.width=BOX_W+"px";
-    h.innerHTML="<b>"+s.label+"</b><span>"+s.cr+'<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>';
-    h.classList.toggle('planned', isPlannedCol(i));   // PLAN-MODE
+    // PLAN-MODE: the diamond is the greyscale-safe half of the cue, and it rides INSIDE the
+    // credit pill so a planned column is never a line taller than an ordinary one.
+    const pl=isPlannedCol(i);
+    h.innerHTML="<b>"+s.label+'</b><span class="cr">'+(pl?'<i class="pm">&#9671;</i>':'')+s.cr+
+      '<span class="u-long"> Credit</span><span class="u-short"> CR</span></span>';
+    h.classList.toggle('planned', pl);
     colsBar.appendChild(h);
   });
   renderPlanBands();   // PLAN-MODE: needs mapH + the column geometry set just above
@@ -1765,6 +1806,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape' && trackDlg.classLi
 function updateTrackUI(){
   planSel.value=track;
   const bt=document.getElementById('brandTrack'); if(bt) bt.textContent=(track==='coop'?'Co-op':'Regular');
+  fitBar();   // the brand line changed width
 }
 // a track swap changes which courses exist, so the map must be RE-LAID-OUT (relayout=true),
 // not stably re-seeded like task 3's drag-to-move.
@@ -1797,6 +1839,11 @@ function setEditMode(on){
   editBtn.classList.toggle('on',editMode);
   map.classList.toggle('editmode',editMode);          // CSS reveals every grip at once
   document.body.classList.toggle('editing',editMode); // ...and the "reset" button
+  // THE reported bug: revealing "reset" and "add / delete" wraps the toolbar onto a second line,
+  // so the header is suddenly taller than the gap #scroll left for it and paints over the map
+  // and the year banner. ResizeObserver covers this too, but it only delivers on a rendered
+  // frame -- this call is synchronous with the class change, so the map never flickers under it.
+  fitBar();
   if(!editMode) closeMoveMenu();
 }
 editBtn.addEventListener('click',()=>setEditMode(!editMode));
@@ -3120,8 +3167,15 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') deselect(); });
 rebuildMap(true);
 
 // ---- measure header so column heads never overlap it ----
+// #scroll starts at --bar, so --bar being stale means the fixed header paints OVER the map and
+// the sticky year banner. It used to be recomputed on window resize only, which missed every
+// way the header changes height on its own: edit mode revealing two buttons (the reported bug --
+// 163px of reserved space for a 181px header), plan-mode, the legend wrapping, a long student
+// name landing in #whoami at login, a track swap relabelling the plan, or the web fonts arriving
+// late. Observing the element catches all of them, including the ones nobody has thought of yet.
 function fitBar(){ document.documentElement.style.setProperty('--bar',(header.offsetHeight)+'px'); }
-window.addEventListener('resize',fitBar);
+if(typeof ResizeObserver!=='undefined'){ new ResizeObserver(fitBar).observe(header); }
+window.addEventListener('resize',fitBar);                        // ResizeObserver-less fallback
 window.addEventListener('load',()=>{ fitBar(); setTimeout(fitBar,300); });
 fitBar();
 
@@ -3462,6 +3516,7 @@ function rehydrate(){
     const so=document.getElementById('signout');
     if(so) so.addEventListener('click',()=>{ try{ sessionStorage.removeItem('cie_sess'); }catch(e){} location.reload(); });
   }
+  fitBar();   // #whoami just gained a name, which on a narrow window wraps the top row
 }
 
 // hydrate in-memory state from a login/register payload {profile, grades, extras}
@@ -4089,7 +4144,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v33';
+const APP_BUILD='v34';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
