@@ -1,4 +1,4 @@
-# CIE Course Map — Google Apps Script backend (v4)
+# CIE Course Map — Google Apps Script backend (v5)
 
 Turns your Google Sheet into the live database. **v2 layout**: one tab per semester (grades), a
 `students` tab (login/identity), and an `extras` tab (notes / stars / elective overrides).
@@ -21,9 +21,9 @@ call (fast).
 Open the Sheet → **Extensions → Apps Script**. Delete `Code.gs`, paste the whole block, **Save**.
 
 ```javascript
-/***** CIE Course Map — Sheets backend (v4) *****
+/***** CIE Course Map — Sheets backend (v5) *****
  * Layout:
- *   students : student_id | password | name | advisor | advisor_comment | role | track | extra_sems | plan_sems
+ *   students : student_id | password | name | advisor | advisor_comment | role | track | extra_sems | plan_sems | auto_shift
  *   <Y1S1..> : student_id | <course_key columns...>   (cell = grade)   one row / student
  *   extras   : id | student_id | course_key | starred | note | elec_code | elec_name | moved_col
  *   custom   : id | student_id | course_key | code | name | cr | cat | col | major_gpa | retake_of | attempt
@@ -43,7 +43,7 @@ Open the Sheet → **Extensions → Apps Script**. Delete `Code.gs`, paste the w
  * POST {action:"register",student_id, name, password, advisor} -> {ok,profile} | {ok:false,error}
  * POST {action:"setGrade",student_id, sem, course_key, grade}  -> {ok:true}
  * POST {action:"setExtra",student_id, course_key, data:{...}}   -> {ok:true}
- * POST {action:"setProfile",student_id, data:{name,advisor_comment,track,extra_sems,plan_sems}} -> {ok:true}
+ * POST {action:"setProfile",student_id, data:{name,advisor_comment,track,extra_sems,plan_sems,auto_shift}} -> {ok:true}
  * POST {action:"setExtra",  student_id, course_key, remove:true}                -> {ok:true}
  * POST {action:"setCustom", student_id, course_key, data:{code,name,cr,cat,col,major_gpa,retake_of,attempt}} -> {ok:true}
  * POST {action:"setCustom", student_id, course_key, remove:true}               -> {ok:true}
@@ -51,7 +51,7 @@ Open the Sheet → **Extensions → Apps Script**. Delete `Code.gs`, paste the w
  * Run setup() ONCE from the editor to build all tabs + demo seed.
  ************************************************/
 
-var STUDENT_HEADERS = ["student_id", "password", "name", "advisor", "advisor_comment", "role", "track", "extra_sems", "plan_sems"];
+var STUDENT_HEADERS = ["student_id", "password", "name", "advisor", "advisor_comment", "role", "track", "extra_sems", "plan_sems", "auto_shift"];
 var EXTRA_HEADERS   = ["id", "student_id", "course_key", "starred", "note", "elec_code", "elec_name", "moved_col"];
 // v3: student-added courses that are not in the printed curriculum (free electives taken
 // off-plan, repeated subjects, summer courses). Their grade lives HERE, not in a semester tab.
@@ -217,7 +217,8 @@ function register(b) {
   var sh = getSheet("students");
   appendObj(sh, headersOf(sh), {
     student_id: sid, password: String(b.password), name: b.name || sid,
-    advisor: b.advisor || "", advisor_comment: "", role: "student", extra_sems: 0, plan_sems: ""
+    advisor: b.advisor || "", advisor_comment: "", role: "student", extra_sems: 0, plan_sems: "",
+    auto_shift: "TRUE"
   });
   // seed a student_id-only row in every semester tab
   for (var s = 0; s < SEM_ORDER.length; s++) {
@@ -325,7 +326,11 @@ function setProfile(b) {
   // already taken, as a comma-separated list of column indexes ("5,7,8"); blank = none. Stored
   // as one scalar for the same reason as extra_sems -- it is a property of the student, not of
   // any one course, so it does not belong in `extras`.
-  ["name", "advisor_comment", "track", "extra_sems", "plan_sems"].forEach(function (k) {
+  // auto_shift: AUTO-SHIFT. "TRUE"/"FALSE" -- whether a W/F automatically pushes the rest of that
+  // prerequisite branch a year later. A student property like the two above, so it lives here and
+  // not in `extras`. BLANK means TRUE on the client, so a row that predates this column, or a Sheet
+  // where migrate_v3() has not run yet, simply has the feature on.
+  ["name", "advisor_comment", "track", "extra_sems", "plan_sems", "auto_shift"].forEach(function (k) {
     if (d[k] === undefined) return;
     var c = headers.indexOf(k); if (c !== -1) sh.getRange(r, c + 1).setValue(d[k]);
   });
@@ -470,7 +475,10 @@ clears a cell, so it is safe to run twice. It:
 3. creates the `custom` tab;
 4. adds any course-key column listed in `SEM_TABS` that the semester tab does not have yet —
    currently `CE401` in `Y4S1` (the co-op work term);
-5. adds `retake_of` and `attempt` to `custom`, and `extra_sems` + `plan_sems` to `students` (v4).
+5. adds `retake_of` and `attempt` to `custom`, and `extra_sems` + `plan_sems` to `students` (v4);
+6. adds `auto_shift` to `students` (v5). Existing rows are left **blank**, which the client reads as
+   `TRUE` — so auto-shift works before the migration runs, and the migration only makes the
+   per-student *off* switch persist.
 
 `setGrade` also creates a missing course column on demand now, so a student-added course needs no
 manual cell: its grade lands in its home semester tab like every other course, and `gradesFor()`

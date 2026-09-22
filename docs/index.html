@@ -552,6 +552,7 @@ body.editing #mvResetAll{display:block}
 #mvToast ul{margin:4px 0 0; padding-left:15px}
 #mvToast .mvx{position:absolute; top:4px; right:7px; cursor:pointer; font-size:13px; line-height:1; padding:4px}
 #mvToast .mvx:hover{color:#7a5800}
+#mvToast .mvundo{margin-top:8px}                     /* AUTO-SHIFT: take the whole cascade back in one tap */
 /* a prerequisite dragged AFTER its dependent: drawn by the span<0 router branch, in red */
 .wire.back{stroke:#dc2626; stroke-width:1.8}
 @media (max-width:720px){
@@ -731,6 +732,7 @@ body:not(.editing) .toolgrp.edit>#editBtn{border-top-right-radius:6px; border-bo
       <!-- Edit: warm, changes the student's plan -->
       <div class="toolgrp edit warm">
         <button class="btn" id="editBtn" title="Edit mode: move a course to another semester">✎ edit</button>
+        <button class="btn" id="shiftBtn" title="Auto-shift: when a course is W or F, move the rest of that prerequisite branch a year later automatically">&#8677; auto-shift</button>
         <button class="btn" id="mvResetAll" title="Put every moved course back on the plan">↺ reset</button>
         <button class="btn" id="addBtn" title="Add a free elective slot or an off-plan/repeated course, or remove one you already added">&#65291;add / &#8722;delete</button>
       </div>
@@ -860,6 +862,7 @@ const writeCache = () => { if(READONLY) return; try {
   localStorage.setItem(cacheKey("cie_custom"), JSON.stringify(customs)); // TASK 3B
   localStorage.setItem(cacheKey("cie_xsems"),  String(extraSems));       // EXTRA YEARS
   localStorage.setItem(cacheKey("cie_plan"),   planSemsStr());           // PLAN-MODE
+  localStorage.setItem(cacheKey("cie_ashift"), autoShiftOn?"1":"0");     // AUTO-SHIFT
 } catch (e) {} };
 // save* keep the old names/call-sites; now they just refresh the local cache.
 // The Sheet write happens via syncCourse(key), called right after each save*.
@@ -907,6 +910,11 @@ const retakeNext={};
 // hoist, so their textual position doesn't matter).
 const MAX_EXTRA_SEMS=12;   // through Year 10 -- a corruption guard, not a product limit
 let extraSems=0;           // persisted per student (cie_xsems / profile.extra_sems)
+// AUTO-SHIFT: on a W/F, push the rest of that prerequisite branch a year later (see the
+// ==== AUTO-SHIFT ==== block). Persisted per student (cie_ashift / profile.auto_shift);
+// declared up here with extraSems because writeCache() -- defined ABOVE planNodes() -- reads
+// it, and a `let` further down would leave that read in the temporal dead zone.
+let autoShiftOn=true;      // missing/blank in the Sheet means ON, so existing rows opt in
 // Major GPA = every CE-department subject: cat:'major' + the major electives + the CE
 // lab/testing subjects that live in cat:'lab'. DESIGN_DEV (CE491-498 capstone), GE_ELEC*
 // and FREE_ELEC* are NOT major. Regular track: 23 courses = 67 credits.
@@ -1173,7 +1181,7 @@ function captureState(){
   return { grades:Object.assign({},grades), stars:Object.assign({},stars),
            notes:Object.assign({},notes),   elec:Object.assign({},elec),
            moves:Object.assign({},moves),   customs:Object.assign({},customs),
-           track, extraSems, plannedSems:new Set(plannedSems),
+           track, extraSems, autoShiftOn, plannedSems:new Set(plannedSems),
            advComment, name:stu.name, id:stu.id };
 }
 function applyState(st){
@@ -1186,6 +1194,7 @@ function applyState(st){
   clearObj(customs);Object.assign(customs,st.customs||{});
   track      = validTrack(st.track);
   extraSems  = (isFinite(st.extraSems) && st.extraSems>=0) ? Math.min(st.extraSems, MAX_EXTRA_SEMS) : 0;
+  autoShiftOn= (st.autoShiftOn===undefined) ? true : !!st.autoShiftOn;   // AUTO-SHIFT: per student, never leaks across an admin drill-down
   plannedSems= (st.plannedSems instanceof Set) ? new Set(st.plannedSems) : parsePlanSems(st.plannedSems);
   advComment = st.advComment||'';
   stu.name   = st.name||''; stu.id = st.id||'';
@@ -1522,6 +1531,12 @@ function setGrade(key,g){
   // rebuildMap() would be overkill -- but it can flip blocking status (W set or cleared,
   // on either the original or a re-take) and the issues list, so refresh just those.
   _issuesCache=null; applyBlockedMarks(); renderIssues();
+  // AUTO-SHIFT: the W/F TRANSITION -- gated on !retakeNext[key] so re-editing an attempt that
+  // has already been handled does nothing and the common path stays as cheap as it was.
+  // effGrade: a chain that recovered in place ("F>B") is not a failure and must not shift.
+  // actualGrade: a grade typed into a PLAN-MODE semester is an intention, not a result (see the
+  // PLAN-MODE seam above), so an expected F never moves the real plan.
+  if(autoShiftOn && !READONLY && needsRetake(effGrade(actualGrade(key)||'')) && !retakeNext[key]) applyFailConsequences(key);
 }
 // per-semester GPA data, shared by the on-screen panel and the PDF document
 // PLAN-MODE: one pass, two sets of totals. `total`/`tDen`/`cred` stay ACTUAL (earned only) so
@@ -1785,6 +1800,19 @@ function setEditMode(on){
 }
 editBtn.addEventListener('click',()=>setEditMode(!editMode));
 
+// AUTO-SHIFT toggle -- same shape as setEditMode(), but persisted per student (profile.auto_shift
+// / cie_ashift) because it changes what the app DOES to the plan, not just what it shows.
+const shiftBtn=document.getElementById('shiftBtn');
+function setAutoShift(on, persist){
+  const was=autoShiftOn;
+  autoShiftOn=!!on;
+  shiftBtn.classList.toggle('on',autoShiftOn);
+  if(!persist) return;                       // hydration/repaint: paint only, never write, never sweep
+  syncAutoShift();
+  if(autoShiftOn && !was) autoShiftSweep();  // switched ON by hand: catch up on failures entered while it was off
+}
+shiftBtn.addEventListener('click',()=>setAutoShift(!autoShiftOn,true));
+
 // a stored/typed column is usable only as an integer inside the CURRENT semester range.
 // EXTRA YEARS: split from the old single-purpose version -- this one gates interactive input
 // (the pickers, the drag drop target) and must stay inside totalSems(); hydration uses the
@@ -1816,13 +1844,18 @@ function moveWarnings(key){
 // own toast: #banner belongs to the sync/offline errors and a move must never stomp one
 let _mvToastT=null;
 function hideMoveToast(){ clearTimeout(_mvToastT); mvToast.classList.remove('show'); mvToast.innerHTML=''; }
-function showMoveToast(head,list){
+// AUTO-SHIFT: optional third arg -- a callback that gets its own "undo" button inside the toast
+// and a longer dwell, since a cascade is the one action worth taking back in a single tap.
+// Every existing two-arg call is unchanged.
+function showMoveToast(head,list,undo){
   clearTimeout(_mvToastT);
   mvToast.innerHTML='<span class="mvx" id="mvToastX">&#10005;</span><b>'+head+'</b>'+
-    (list.length?'<ul><li>'+list.join('</li><li>')+'</li></ul>':'');
+    (list.length?'<ul><li>'+list.join('</li><li>')+'</li></ul>':'')+
+    (undo?'<button type="button" class="btn mvundo" id="mvToastUndo">&#8635; undo</button>':'');
   mvToast.classList.add('show');
   document.getElementById('mvToastX').addEventListener('click',hideMoveToast);
-  _mvToastT=setTimeout(hideMoveToast, list.length?9000:3200);
+  if(undo) document.getElementById('mvToastUndo').addEventListener('click',()=>{ hideMoveToast(); undo(); });
+  _mvToastT=setTimeout(hideMoveToast, undo?16000:(list.length?9000:3200));
 }
 
 // the ONE write path. rebuildMap(FALSE): each column is re-seeded from the previous
@@ -2258,6 +2291,15 @@ function trimExtraSems(){
 // than allowed to paint a band over a column that does not exist. It deliberately does NOT
 // clamp to the current column count -- hydration order is not guaranteed and a plan on Y5 S1
 // must survive a load where extraSems has not been applied yet. ----
+// AUTO-SHIFT: the guard on the way IN, for both sources (the Sheet's "TRUE"/"FALSE" and
+// localStorage's "1"/"0"). A BLANK or missing value means ON -- that is what lets every
+// existing students row, and a Sheet where migrate_v3 has not added the column yet, opt in
+// without a migration being a prerequisite for the feature working.
+function parseAutoShift(v){
+  if(v==null) return true;
+  const t=String(v).trim().toLowerCase();
+  return t==='' ? true : !(t==='false' || t==='0' || t==='no' || t==='off');
+}
 function parsePlanSems(v){
   const out=new Set();
   String(v==null?'':v).split(',').forEach(part=>{
@@ -2579,20 +2621,24 @@ function defaultRetakeTargetCol(fromCol){
   for(let i=0;i<max;i++) if(semLabelAt(i)===want) return i;
   return null;
 }
-function createRetake(origKey, col){
-  const o=byKey[origKey]; if(!o) return;
+// AUTO-SHIFT: `quiet` suppresses the toast and returns the new key, so applyFailConsequences()
+// can create the re-take and then report the re-take AND the whole cascade in ONE toast
+// instead of two that overwrite each other. Interactive callers pass nothing and are unchanged.
+function createRetake(origKey, col, quiet){
+  const o=byKey[origKey]; if(!o) return null;
   // EXTRA YEARS: same grow sentinel commitMove()/createCustomElective() read: col===totalSems().
   if(col===totalSems() && canGrow()){ extraSems++; syncSems(); }
-  const target=mvValidCol(col); if(target==null) return;
+  const target=mvValidCol(col); if(target==null) return null;
   const key=genCustomKey('R');
   customs[key]={ key, retakeOf:origKey, col:target,
     short:o.short, name:o.name, cr:o.cr, cat:o.cat, majorGpa:isMajorGpa(o),   // inherited: a re-take of a CE course still counts in the Major GPA
-    desc:'Re-take of '+o.short+' (withdrawn '+PLAN.sems[o.col].label+').' };
+    desc:'Re-take of '+o.short+' ('+(effGrade(grades[origKey])==='F'?'failed ':'withdrawn ')+PLAN.sems[o.col].label+').' };
   syncCustom(key);
   trimExtraSems();
   rebuildMap(true);
   const n=byKey[key];
-  showMoveToast(esc(o.short)+' re-take added &rarr; '+esc(n?PLAN.sems[n.col].label:'?')+'.', []);
+  if(!quiet) showMoveToast(esc(o.short)+' re-take added &rarr; '+esc(n?PLAN.sems[n.col].label:'?')+'.', []);
+  return key;
 }
 // ---- dialog: "Re-take of X" semester picker, pre-pointed at the default target (one tap
 // confirms). If this exact attempt already has a re-take, offer to remove it or jump to it
@@ -2659,6 +2705,125 @@ function sanitizeRetakeLinks(){
     path.pop(); state[k]=2;
   }
   Object.keys(customs).forEach(visit);
+}
+
+// ===========================================================================
+// ==== AUTO-SHIFT ====
+// A W or F does not just warn any more: it pushes the rest of that prerequisite branch
+// later, the way the student's actual timetable has to. Three parts:
+//
+//   nextYearCol(col)        one year later, SAME semester slot
+//   autoShiftPlan()         PURE. reads PLAN/byKey/planEdges, returns {shifts, stuck}
+//   applyFailConsequences() the write path: re-take node + moves{} + extraSems + one toast
+//
+// MINIMAL, not blanket: a course moves only when it would otherwise sit at or before the
+// semester its prerequisite now finishes in -- the exact condition planIssues()'s 'prereq'
+// rule flags. A dependent already late enough is left alone, and two failures in one branch
+// legitimately push a course two years. Because the pass is driven by VIOLATIONS it is
+// idempotent: re-running it on an already-shifted plan returns no shifts at all, which is
+// what makes it safe to persist the result as ordinary moves{} / moved_col rows and re-derive
+// on every login.
+//
+// Trigger is the W/F transition in setGrade(), NOT every rebuild -- so a student who drags a
+// shifted course back by hand keeps that placement until the next failure.
+// ===========================================================================
+// One year later, same semester. defaultRetakeTargetCol() already does exactly this lookup by
+// LABEL ('Y<n> S<m>' -> 'Y<n+1> S<m>'), which is why Summer returns null instead of a fixed
+// col+2 that would skip a year or land on the wrong semester. Summer is never a shift target.
+const nextYearCol = c => defaultRetakeTargetCol(c);
+function autoShiftPlan(){
+  const col={}, stuck=[];
+  PLAN.nodes.forEach(n=>col[n.key]=n.col);
+  // planEdges(): both endpoints already re-pointed to the newest attempt in their own re-take
+  // chain, so a failed course is measured at its RE-TAKE's column for free, and the superseded
+  // attempt (no edges left) is never shifted off the semester it was actually sat in.
+  const edges=planEdges().filter(e=>byKey[e.s]&&byKey[e.t]);
+  const LIMIT=DATA.sems.length+MAX_EXTRA_SEMS;   // same corruption guard mvValidColRaw() enforces
+  let changed=true;
+  for(let pass=0; changed && pass<=PLAN.nodes.length; pass++){
+    changed=false;
+    edges.forEach(e=>{
+      const need = e.co ? col[e.s] : col[e.s]+1;   // a co-requisite may share the column; a hard prerequisite must finish strictly earlier
+      if(col[e.t]>=need) return;
+      let c=col[e.t];
+      for(let g=0; c<need && g<=LIMIT; g++){
+        const nx=nextYearCol(c);
+        if(nx==null || nx>=LIMIT){ c=null; break; }   // Summer, or past the Y10 guard
+        c=nx;
+      }
+      if(c==null || c<need){ if(stuck.indexOf(e.t)<0) stuck.push(e.t); return; }   // report it, never clamp it into the wrong column
+      col[e.t]=c; changed=true;
+    });
+  }
+  const shifts={};
+  Object.keys(col).forEach(k=>{ if(col[k]!==byKey[k].col) shifts[k]=col[k]; });
+  return {shifts, stuck};
+}
+// Create the missing re-take for one course, quietly. null when there is nothing to make:
+// already re-taken, not actually failing, or a Summer attempt with no later Summer to land in.
+function ensureRetake(key){
+  const n=byKey[key]; if(!n || retakeNext[key]) return null;
+  if(!needsRetake(effGrade(actualGrade(key)||''))) return null;   // a chain that recovered in place ("F>B") is not a failure
+  const def=defaultRetakeTargetCol(n.col);
+  return def==null ? null : createRetake(key, def, true);
+}
+// The shared write path: relax the plan, persist each new column as a plain moves{} entry --
+// set directly rather than via commitMove(), which would rebuild the map and raise its own
+// toast once per course -- then report the re-take(s) AND the whole cascade in ONE toast.
+// `oldCol` / `xBefore` are snapshots taken by the caller BEFORE it created any re-take.
+function autoShiftApply(headKey, madeKeys, oldCol, xBefore){
+  const res=autoShiftPlan(), shifts=res.shifts, keys=Object.keys(shifts);
+  const prev={};                                    // for the toast's undo: the moves{} value each key had BEFORE
+  keys.forEach(k=>{ prev[k]=moves[k]; moves[k]=shifts[k]; syncExtra(k); });
+  if(keys.length){
+    reconcileSems();                                // EXTRA YEARS: raise the ceiling to whatever the shifted columns now need...
+    if(extraSems!==xBefore) syncSems();             // ...and persist only when it actually grew. No trimExtraSems(): a shift only moves
+    rebuildMap(true);                               // courses LATER, so it can never empty a trailing column.
+  }
+  if(!madeKeys.length && !keys.length) return;      // nothing happened: stay quiet
+  const list=madeKeys.map(k=>{ const n=byKey[k];
+      return '<b>'+esc(origKeyShort(customs[k]?customs[k].retakeOf:k))+'</b> &middot; re-take added in '+esc(semLabelAt(n?n.col:0)); })
+    .concat(keys.map(k=>'<b>'+esc(origKeyShort(k))+'</b> &middot; '+esc(semLabelAt(oldCol[k]))+' &rarr; '+esc(semLabelAt(shifts[k]))));
+  res.stuck.forEach(k=>{ if(!(k in shifts)) list.push('<b>'+esc(origKeyShort(k))+
+    '</b> could not shift &mdash; no later semester of the same kind. Move it by hand.'); });
+  const head=(headKey ? esc(origKeyShort(headKey))+' ' : '')+
+    (keys.length ? keys.length+' course'+(keys.length>1?'s':'')+' shifted:' : 'nothing else needed to move.');
+  showMoveToast(head, list, ()=>undoAutoShift(madeKeys, prev));
+}
+// The narrow trigger: one course just went W/F (see setGrade).
+function applyFailConsequences(originKey){
+  if(!autoShiftOn || READONLY || !CURRENT || !byKey[originKey]) return;
+  const oldCol={}; PLAN.nodes.forEach(n=>oldCol[n.key]=n.col);
+  const xBefore=extraSems;
+  const rtKey=ensureRetake(originKey);
+  autoShiftApply(originKey, rtKey?[rtKey]:[], oldCol, xBefore);
+}
+// Switching the toggle ON is a RETROACTIVE instruction -- catch up on every W/F entered while
+// it was off. Deliberately the only sweep: the setGrade trigger stays one course, so entering
+// a new F never quietly re-takes some unrelated old one behind the student's back.
+function autoShiftSweep(){
+  if(!autoShiftOn || READONLY || !CURRENT) return;
+  const oldCol={}; PLAN.nodes.forEach(n=>oldCol[n.key]=n.col);
+  const xBefore=extraSems;
+  // snapshot the key list first: createRetake() rebuilds the map, so byKey/PLAN.nodes are
+  // replaced on every iteration and a held node reference would go stale.
+  const made=[];
+  PLAN.nodes.map(n=>n.key).forEach(k=>{ const rk=ensureRetake(k); if(rk) made.push(rk); });
+  autoShiftApply(null, made, oldCol, xBefore);
+}
+// Undo for the toast button only -- session-scoped, restores exactly what this one cascade
+// changed (each moved course's PREVIOUS moves{} value, the re-take rows, the extraSems ceiling).
+// The GRADE is left alone: the W/F is the student's record, only the shift is being taken back.
+// Not a general history -- once the toast is gone, the Recap panel's per-row revert is the tool.
+function undoAutoShift(madeKeys, prev){
+  Object.keys(prev).forEach(k=>{
+    if(prev[k]==null) delete moves[k]; else moves[k]=prev[k];
+    syncExtra(k);                                   // writes "" when cleared -- see syncExtra
+  });
+  // newest first, so removing a chain never re-links a re-take onto one already deleted
+  madeKeys.slice().reverse().forEach(k=>{ if(customs[k]) removeCustomCourse(k); });   // rebuilds + trims extraSems on its own
+  if(!madeKeys.length){ trimExtraSems(); rebuildMap(true); }
+  showMoveToast('Auto-shift undone.', []);
 }
 
 // ---- formal PDF document (course list + summary + advisor comment + signatures) ----
@@ -3023,6 +3188,17 @@ function syncTrack(){             // TASK 2: active curriculum track -> students
       .catch(err=>console.warn("setProfile (track) failed:",err));
   },500);
 }
+let _asTimer=null;
+function syncAutoShift(){         // AUTO-SHIFT: clone of syncTrack -- auto_shift -> students row
+  if(!CURRENT) return;
+  writeCache();
+  if(OFFLINE || READONLY || !HAS_API()) return;
+  clearTimeout(_asTimer);
+  _asTimer=setTimeout(()=>{
+    API.setProfile(CURRENT.student_id, { auto_shift: autoShiftOn?"TRUE":"FALSE" })
+      .catch(err=>console.warn("setProfile (auto_shift) failed:",err));
+  },500);
+}
 function syncCourse(key){ syncExtra(key); }   // back-compat alias
 
 // push loaded state into the rendered boxes. Called by rehydrate() after login AND by
@@ -3092,6 +3268,7 @@ function applyPayload(p){
   // moves/customs require, so a missing or stale scalar never drops a course.
   { const xs=parseInt(prof.extra_sems,10); extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
   plannedSems=parsePlanSems(prof.plan_sems);   // PLAN-MODE: same corruption-guard as extra_sems
+  autoShiftOn=parseAutoShift(prof.auto_shift); // AUTO-SHIFT: blank / missing column / un-migrated Sheet all mean ON
   recoverOrphanCustoms((p&&p.customs&&p.customs.length)||0);   // RECOVERY: see below
 }
 
@@ -3161,6 +3338,7 @@ function loadOfflineCache(sid){
   plannedSems=parsePlanSems((function(){ try{ return localStorage.getItem("cie_plan:"+sid); }catch(e){ return null; } })());   // PLAN-MODE
   { const xs=parseInt((function(){ try{ return localStorage.getItem("cie_xsems:"+sid); }catch(e){ return null; } })(),10);
     extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
+  autoShiftOn=parseAutoShift((function(){ try{ return localStorage.getItem("cie_ashift:"+sid); }catch(e){ return null; } })());   // AUTO-SHIFT
 }
 
 // ---- login / register ----
@@ -3199,6 +3377,7 @@ function finishAuth(){
   // reach. The data behind it was already world-readable through ?sheet= -- this gate is about
   // the UI, not about secrecy, and the dashboard adds no new exposure.
   document.body.classList.toggle('isadmin', !!(CURRENT && CURRENT.role==='admin'));
+  setAutoShift(autoShiftOn, false);    // AUTO-SHIFT: paint the toggle from the hydrated flag, without writing it back
   updateTrackUI(); rebuildMap(true);   // rebuildMap re-derives PLAN from the loaded track
   rehydrate(); loginEl.classList.add('hide');
 }
@@ -3338,6 +3517,7 @@ async function fetchCohort(){
     const st=get(id);
     st.track=r.track; st.plannedSems=parsePlanSems(r.plan_sems);
     st.extraSems=parseInt(r.extra_sems,10)||0;
+    st.autoShiftOn=parseAutoShift(r.auto_shift);   // AUTO-SHIFT: read-only here, but applyState must not inherit the admin's own flag
     st.advComment=String(r.advisor_comment||''); st.name=String(r.name||''); st.id=id;
     return {id, name:String(r.name||''), advisor:String(r.advisor||''),
             role:String(r.role||'student'), state:st};
@@ -3614,6 +3794,7 @@ function exitViewAs(){
   viewbar.classList.remove('open'); viewbar.innerHTML='';
   document.body.classList.remove('viewas');
   closeAdmin();
+  setAutoShift(autoShiftOn, false);   // AUTO-SHIFT: the warm toolgrp is visible again -- repaint it from the admin's OWN restored flag
   reconcileSems(); rebuildMap(true); rehydrate(); updateTrackUI(); computeSummary(); renderIssues();
 }
 document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false));
@@ -3621,7 +3802,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v29';
+const APP_BUILD='v30';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
