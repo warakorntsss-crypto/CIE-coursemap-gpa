@@ -416,11 +416,15 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 
 /* the table view. Grows in COLUMNS, so thirteen semesters is five rows, not thirteen --
    which is what keeps the whole panel on screen without a scrollbar. */
-.sgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:0 14px}
+/* Two columns, not three: a cell has to hold the label, the plan tag, GPA, cumulative and
+   credits, and at 168px the tag and the label were fighting over the same pixels -- one or
+   the other always ended up ellipsed. Nine semesters is five rows instead of three, which
+   the panel has the height for. */
+.sgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(236px,1fr)); gap:0 16px}
 .scell{display:flex; align-items:baseline; gap:6px; padding:3px 0;
   border-top:1px solid rgba(28,42,58,.09); font-family:"JetBrains Mono",monospace;
   font-size:11px; color:var(--ink-dim); font-variant-numeric:tabular-nums}
-.scell .sl{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.scell .sl{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .scell .sg{color:#14233a; font-size:12px; min-width:32px; text-align:right}
 .scell .sc{font-style:normal; color:var(--s-e); min-width:32px; text-align:right}
 .scell .scr{text-decoration:none; color:var(--ink-dim); font-size:9.5px; min-width:26px; text-align:right}
@@ -429,8 +433,14 @@ textarea:focus{outline:none; border-color:var(--cyan); box-shadow:0 0 0 1px var(
 .scap b{color:#14233a} .scap i{font-style:normal; color:var(--s-e)} .scap u{text-decoration:none}
 .scell.plan .sl,.scell.plan .sc{color:var(--s-p)}
 .scell.plan .sg{color:var(--s-p); font-style:italic}
-.scell .sl em{font-style:normal; font-size:8px; letter-spacing:.7px; color:var(--s-p);
-  border:1px solid var(--plan-edge); border-radius:20px; padding:0 4px; margin-left:3px}
+/* The "plan" tag used to live INSIDE .sl, which is the flex:1 item carrying
+   overflow:hidden + text-overflow:ellipsis for long semester names -- so the tag was the
+   first thing the clip ate: 32px of tag with only 18px showing, reading as "pl". It is its
+   own flex item now, with flex:0 0 auto so it reserves its width and the LABEL ellipses
+   instead (which it never does in practice -- the short labels are five characters). */
+.scell em.pl{flex:0 0 auto; font-style:normal; font-size:8px; letter-spacing:.7px;
+  line-height:1.5; color:var(--s-p); background:rgba(13,148,136,.10);
+  border:1px solid var(--plan-edge); border-radius:20px; padding:0 5px; white-space:nowrap}
 .planfoot{margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:9px; line-height:1.45;
   color:var(--s-p)}
 
@@ -1897,7 +1907,8 @@ function computeSummary(){
     const cum=S.earned[i], pr=S.proj[i];
     const cumTxt = r.planned ? (pr!=null?pr.toFixed(2):'—') : (cum!=null?cum.toFixed(2):'—');
     return '<div class="scell'+(r.planned?' plan':'')+'">'+
-      '<span class="sl">'+esc(S.labels[i])+(r.planned?' <em>plan</em>':'')+'</span>'+
+      // the plan tag is its OWN flex item, not part of .sl -- see the CSS note
+      '<span class="sl">'+esc(S.labels[i])+'</span>'+(r.planned?'<em class="pl">plan</em>':'')+
       '<b class="sg">'+r.gpa+'</b><i class="sc">'+cumTxt+'</i><u class="scr">'+r.den+'</u></div>';
   }).join('');
   // ONE caption above the grid. A header CELL would sit in the first of the three columns
@@ -4466,7 +4477,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v35';
+const APP_BUILD='v36';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){
