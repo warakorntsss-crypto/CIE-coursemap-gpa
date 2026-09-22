@@ -863,6 +863,7 @@ const writeCache = () => { if(READONLY) return; try {
   localStorage.setItem(cacheKey("cie_xsems"),  String(extraSems));       // EXTRA YEARS
   localStorage.setItem(cacheKey("cie_plan"),   planSemsStr());           // PLAN-MODE
   localStorage.setItem(cacheKey("cie_ashift"), autoShiftOn?"1":"0");     // AUTO-SHIFT
+  localStorage.setItem(cacheKey("cie_role"),   (CURRENT&&CURRENT.role)||"student");  // ADMIN
 } catch (e) {} };
 // save* keep the old names/call-sites; now they just refresh the local cache.
 // The Sheet write happens via syncCourse(key), called right after each save*.
@@ -2086,28 +2087,37 @@ function validCustomRow(r){
 const _cTimers={};
 function syncCustom(key){          // course definition -> the `custom` tab
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  if(!CURRENT || READONLY || !HAS_API()) return;
   const n=customs[key]; if(!n) return;
+  const data={code:n.short, name:n.name, cr:n.cr, cat:n.cat, col:n.col,
+              major_gpa:n.majorGpa===true, retake_of:n.retakeOf||''};
+  if(OFFLINE){ pendPut("custom",key,data); return; }
   clearTimeout(_cTimers[key]);
   _cTimers[key]=setTimeout(()=>{
-    API.setCustom(CURRENT.student_id, key, {code:n.short, name:n.name, cr:n.cr, cat:n.cat, col:n.col,
-                                             major_gpa:n.majorGpa===true, retake_of:n.retakeOf||''})
-      .catch(err=>{ console.warn("setCustom failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+    API.setCustom(CURRENT.student_id, key, data)
+      .then(()=>pendDrop("custom",key))
+      .catch(err=>syncFailed("setCustom",err,"custom",key,data));
   },400);
 }
 function syncDelExtra(key){        // remove the `extras` tab row outright
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  if(!CURRENT || READONLY || !HAS_API()) return;
   clearTimeout(_eTimers[key]);     // a pending upsert for this key must not re-create the row
+  pendDrop("extra",key);           // ...nor a QUEUED one, which would resurrect it on reconnect
+  if(OFFLINE){ pendPut("delExtra",key,{}); return; }
   API.delExtra(CURRENT.student_id, key)
-    .catch(err=>console.warn("delExtra failed:",err));
+    .then(()=>pendDrop("delExtra",key))
+    .catch(err=>syncFailed("delExtra",err,"delExtra",key,{}));
 }
 function syncDelCustom(key){       // remove the `custom` tab row
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  if(!CURRENT || READONLY || !HAS_API()) return;
   clearTimeout(_cTimers[key]);
+  pendDrop("custom",key);          // a queued definition must not re-create the course on reconnect
+  if(OFFLINE){ pendPut("delCustom",key,{}); return; }
   API.delCustom(CURRENT.student_id, key)
-    .catch(err=>{ console.warn("delCustom failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+    .then(()=>pendDrop("delCustom",key))
+    .catch(err=>syncFailed("delCustom",err,"delCustom",key,{}));
 }
 
 // ---- create / remove ----
@@ -2313,11 +2323,14 @@ let _plTimer=null;
 function syncPlan(){              // PLAN-MODE: clone of syncSems -- plan_sems -> students row
   if(!CURRENT) return;
   writeCache();
-  if(OFFLINE || READONLY || !HAS_API()) return;
+  if(READONLY || !HAS_API()) return;
+  const data={ plan_sems: planSemsStr() };
+  if(OFFLINE){ pendProfile(data); return; }
   clearTimeout(_plTimer);
   _plTimer=setTimeout(()=>{
-    API.setProfile(CURRENT.student_id, { plan_sems: planSemsStr() })
-      .catch(err=>console.warn("setProfile (plan_sems) failed:",err));
+    API.setProfile(CURRENT.student_id, data)
+      .then(()=>pendProfileSent(data))
+      .catch(err=>syncFailed("setProfile (plan_sems)",err,"profile",null,data));
   },500);
 }
 // ---- PLAN-MODE rendering. One band per CONTIGUOUS run of planned columns, so ticking
@@ -2392,11 +2405,14 @@ let _xsTimer=null;
 function syncSems(){              // EXTRA YEARS: clone of syncTrack -- extra_sems -> students row
   if(!CURRENT) return;
   writeCache();
-  if(OFFLINE || READONLY || !HAS_API()) return;
+  if(READONLY || !HAS_API()) return;
+  const data={ extra_sems: extraSems };
+  if(OFFLINE){ pendProfile(data); return; }
   clearTimeout(_xsTimer);
   _xsTimer=setTimeout(()=>{
-    API.setProfile(CURRENT.student_id, { extra_sems: extraSems })
-      .catch(err=>console.warn("setProfile (extra_sems) failed:",err));
+    API.setProfile(CURRENT.student_id, data)
+      .then(()=>pendProfileSent(data))
+      .catch(err=>syncFailed("setProfile (extra_sems)",err,"profile",null,data));
   },500);
 }
 // ---- grow affordance (edit mode, drag path): a dashed ghost column header while a course can
@@ -3140,15 +3156,185 @@ const semOf = key => (semLabelAt(homeCol(key)) || "").replace(/\s+/g,"");  // "Y
 function showBanner(msg){ const b=document.getElementById('banner'); if(!b)return;
   if(msg){ b.textContent=msg; b.classList.add('show'); } else { b.classList.remove('show'); } }
 
+// ---------------------------------------------------------------------------
+//  PENDING QUEUE
+//  A write that never reached the Sheet used to exist ONLY in localStorage -- and the cache is
+//  never replayed, so the next successful login rehydrated from the Sheet and silently threw the
+//  edit away. Every write that is refused (offline) or fails now parks an op here instead, and
+//  the queue is replayed as soon as the backend answers again: on reconnect mid-session, or at
+//  the start of the next one.
+//
+//  Ops carry their VALUE, not just their key. By the time a queue survives a reload and gets
+//  replayed, applyPayload() has already overwritten memory with the Sheet's (older) version of
+//  that key, so a key-only op would faithfully re-push exactly what the student was trying to
+//  change. The value is snapshotted at edit time.
+//
+//  Keyed "kind:key" so repeated edits to one course collapse to a single op -- a queue built up
+//  over an afternoon offline is the size of the work, not the size of the typing.
+// ---------------------------------------------------------------------------
+const PENDING = new Map();
+function pendPut(kind,key,data){
+  if(!CURRENT || READONLY) return;              // ADMIN: never queue another student's edits
+  PENDING.set(kind+":"+(key||""), {kind, key:key||"", data});
+  pendWrite();
+}
+function pendDrop(kind,key){ if(PENDING.delete(kind+":"+(key||""))) pendWrite(); }
+function pendWrite(){
+  if(!CURRENT || READONLY) return;
+  try{ localStorage.setItem(cacheKey("cie_pend"), JSON.stringify(Array.from(PENDING.values()))); }catch(e){}
+}
+function pendLoad(){
+  PENDING.clear();
+  if(!CURRENT) return;
+  try{
+    const raw=localStorage.getItem(cacheKey("cie_pend"));
+    (JSON.parse(raw||"[]")||[]).forEach(o=>{
+      if(o && o.kind) PENDING.set(o.kind+":"+(o.key||""), {kind:o.kind, key:String(o.key||""), data:o.data});
+    });
+  }catch(e){ PENDING.clear(); }                 // a corrupt queue is dropped, never half-replayed
+}
+// A queued profile write is PARTIAL (just {track}, just {name, advisor_comment}, ...), so these
+// ops MERGE rather than overwrite: otherwise a track change queued after a name change would
+// silently drop the name.
+function pendProfile(data){
+  if(!CURRENT || READONLY) return;
+  const cur=PENDING.get("profile:");
+  pendPut("profile","",Object.assign({}, (cur&&cur.data)||{}, data));
+}
+// Acknowledge only the FIELDS that actually went out. A merged profile op can carry a track
+// queued while offline alongside a name that just synced fine; dropping the whole op on that
+// success would throw the track away. A field is cleared only when the queued value is still
+// exactly the value we sent.
+function pendProfileSent(data){
+  const cur=PENDING.get("profile:"); if(!cur) return;
+  const left=Object.assign({}, cur.data||{});
+  Object.keys(data||{}).forEach(k=>{ if(JSON.stringify(left[k])===JSON.stringify(data[k])) delete left[k]; });
+  if(Object.keys(left).length) pendPut("profile","",left); else pendDrop("profile","");
+}
+function pendSend(op){
+  const sid=CURRENT.student_id, d=op.data||{};
+  switch(op.kind){
+    case "grade":     return API.setGrade(sid, d.sem, op.key, d.grade||"");
+    case "extra":     return API.setExtra(sid, op.key, d);
+    case "delExtra":  return API.delExtra(sid, op.key);
+    case "custom":    return API.setCustom(sid, op.key, d);
+    case "delCustom": return API.delCustom(sid, op.key);
+    case "profile":   return API.setProfile(sid, d);
+  }
+  return Promise.resolve();                     // unknown kind from an older build: drop it
+}
+// Put queued values back over the top of a freshly hydrated payload, BEFORE the first render. A
+// queued op is the student's own newer intent; the Sheet copy applyPayload() just installed is by
+// definition older. Without this the map would show the server version and then disagree with
+// what flushPending() is about to push.
+function pendReapply(){
+  PENDING.forEach(op=>{
+    const k=op.key, d=op.data||{};
+    if(op.kind==="grade"){ if(d.grade) grades[k]=String(d.grade); else delete grades[k]; }
+    else if(op.kind==="extra"){
+      if(String(d.starred).toUpperCase()==="TRUE") stars[k]=1; else delete stars[k];
+      if(d.note) notes[k]=String(d.note); else delete notes[k];
+      if(d.elec_code||d.elec_name){ elec[k]={}; if(d.elec_code)elec[k].code=String(d.elec_code); if(d.elec_name)elec[k].name=String(d.elec_name); }
+      else delete elec[k];
+      const mc=mvValidColRaw(d.moved_col); if(mc!=null) moves[k]=mc; else delete moves[k];
+    }
+    else if(op.kind==="delExtra"){ delete stars[k]; delete notes[k]; delete elec[k]; delete moves[k]; }
+    // same validator as every other hydration path -- a queued row earns no more trust than a stored one
+    else if(op.kind==="custom"){ const cc=validCustomRow(Object.assign({course_key:k}, d)); if(cc) customs[cc.key]=cc; }
+    else if(op.kind==="delCustom"){ delete customs[k]; }
+    else if(op.kind==="profile"){
+      if(d.name!=null) stu.name=String(d.name);
+      if(d.advisor_comment!=null) advComment=String(d.advisor_comment);
+      if(d.track!=null) track=validTrack(d.track);
+      if(d.auto_shift!=null) autoShiftOn=parseAutoShift(d.auto_shift);
+      if(d.plan_sems!=null) plannedSems=parsePlanSems(d.plan_sems);
+      if(d.extra_sems!=null){ const xs=parseInt(d.extra_sems,10); if(isFinite(xs)&&xs>=0) extraSems=Math.min(xs,MAX_EXTRA_SEMS); }
+    }
+  });
+}
+// Replay SEQUENTIALLY. The backend serialises on one script lock, and firing a whole queue at it
+// in parallel is the same pile-up syncExtrasBulk() exists to avoid. An op that fails stays queued
+// for the next attempt; one the backend actively REJECTS (err.fromBackend -- "unknown action"
+// against an un-migrated deployment) is dropped, since replaying it can only fail again for ever.
+let _flushing=false;
+async function flushPending(){
+  if(_flushing || OFFLINE || READONLY || !CURRENT || !HAS_API() || !PENDING.size) return;
+  _flushing=true;
+  const ops=Array.from(PENDING.values());
+  let failed=0;
+  try{
+    for(const op of ops){
+      try{ await pendSend(op); pendDrop(op.kind, op.key); }
+      catch(err){
+        if(err && err.fromBackend){ console.warn("dropping rejected queued op:",op.kind,op.key,err); pendDrop(op.kind, op.key); }
+        else { failed++; console.warn("queued op still failing:",op.kind,op.key,err); }
+      }
+    }
+  } finally { _flushing=false; }
+  if(failed){ OFFLINE=true; showBanner("\u26A0 "+failed+" change(s) not saved yet \u2014 retrying"); startProbe(); }
+  else if(ops.length) showBanner("\u2713 synced \u2014 your changes are saved");
+}
+
+// ---------------------------------------------------------------------------
+//  RECONNECT PROBE
+//  OFFLINE used to be a one-way latch: set when login could not reach the backend, cleared only
+//  by a later successful login. One transient failure therefore demoted the REST OF THE SESSION
+//  to cache-only, with no retry and no way back short of a reload -- which is exactly how a live
+//  page ended up reporting "offline" while the backend was perfectly healthy. The probe polls a
+//  cheap ?action=ping until the backend answers, then clears the latch and drains the queue.
+// ---------------------------------------------------------------------------
+let _probeTimer=null, _probeDelay=0;
+const PROBE_MIN=5000, PROBE_MAX=60000;
+function stopProbe(){ if(_probeTimer){ clearTimeout(_probeTimer); _probeTimer=null; } _probeDelay=0; }
+function startProbe(){
+  if(_probeTimer || !HAS_API() || READONLY || !CURRENT) return;
+  _probeDelay = Math.min(_probeDelay ? _probeDelay*2 : PROBE_MIN, PROBE_MAX);
+  _probeTimer=setTimeout(async()=>{
+    _probeTimer=null;
+    if(!OFFLINE || !CURRENT) return;                  // a login got there first
+    const alive = await API.ping();
+    if(!alive){ startProbe(); return; }               // still down: back off and keep waiting
+    OFFLINE=false; _probeDelay=0;
+    if(PENDING.size) showBanner("\u21BB back online \u2014 saving your changes\u2026");
+    await flushPending();
+    if(!PENDING.size && !OFFLINE) showBanner("");
+  }, _probeDelay);
+}
+// The browser telling us the radio is back is worth an immediate attempt rather than waiting out
+// the backoff; same for a tab the student has just switched back to.
+window.addEventListener("online", ()=>{ if(OFFLINE){ stopProbe(); startProbe(); } });
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && OFFLINE){ stopProbe(); startProbe(); } });
+
+// Every writer funnels its failure through here, so "queue it, warn once, start probing" lives in
+// one place instead of being re-typed in a dozen .catch() arms.
+function syncFailed(what, err, kind, key, data){
+  console.warn(what+" failed:", err);
+  if(err && err.fromBackend){
+    // the backend understood us and said no -- queueing a replay would just repeat the refusal,
+    // and this is NOT an offline condition, so the latch stays clear.
+    showBanner("\u26A0 " + (err.message||"the server rejected a change"));
+    return;
+  }
+  if(kind==="profile") pendProfile(data);       // partial writes MERGE, never overwrite
+  else if(kind) pendPut(kind, key, data);
+  OFFLINE=true;
+  showBanner("\u26A0 offline \u2014 changes saved here and will sync when the connection returns");
+  startProbe();
+}
+
 // ---- persist (debounced per key) ----
 const _gTimers={}, _eTimers={};
 function syncGrade(key){          // grade -> the course's per-semester tab
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  if(!CURRENT || READONLY || !HAS_API()) return;
+  // snapshot at EDIT time, not send time: this exact pair is what gets queued and replayed
+  const data={ sem:semOf(key), grade:grades[key]||"" };
+  if(OFFLINE){ pendPut("grade",key,data); return; }
   clearTimeout(_gTimers[key]);
   _gTimers[key]=setTimeout(()=>{
-    API.setGrade(CURRENT.student_id, semOf(key), key, grades[key]||"")
-      .catch(err=>{ console.warn("setGrade failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+    API.setGrade(CURRENT.student_id, data.sem, key, data.grade)
+      .then(()=>pendDrop("grade",key))
+      .catch(err=>syncFailed("setGrade",err,"grade",key,data));
   },350);
 }
 // the one `extras` row payload, shared by the single and bulk writers
@@ -3164,64 +3350,80 @@ function extraPayload(key){
 // row is never written twice.
 function syncExtrasBulk(keys){
   if(!keys || !keys.length) return; writeCache();
-  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  if(!CURRENT || READONLY || !HAS_API()) return;
   keys.forEach(k=>clearTimeout(_eTimers[k]));
   const sid=CURRENT.student_id, items=keys.map(k=>({course_key:k, data:extraPayload(k)}));
-  API.setExtras(sid, items).catch(err=>{
+  const queueAll=()=>items.forEach(it=>pendPut("extra",it.course_key,it.data));
+  if(OFFLINE){ queueAll(); return; }
+  API.setExtras(sid, items).then(()=>items.forEach(it=>pendDrop("extra",it.course_key))).catch(err=>{
     // a backend that has not been redeployed yet has no setExtras. Fall back to the per-key
     // path, but SEQUENTIALLY -- firing them in parallel is the pile-up this exists to avoid.
+    // This arm must stay AHEAD of syncFailed: "unknown action" is a backend REFUSAL, and
+    // syncFailed would report it to the student instead of trying the fallback.
     if(/unknown action/i.test(String((err&&err.message)||''))){
-      return items.reduce((p,it)=>p.then(()=>API.setExtra(sid, it.course_key, it.data)), Promise.resolve())
-        .catch(e2=>{ console.warn("setExtra (bulk fallback) failed:",e2); showBanner("⚠ sync failed — saved on this device only"); });
+      return items.reduce((p,it)=>p.then(()=>API.setExtra(sid, it.course_key, it.data)
+          .then(()=>pendDrop("extra",it.course_key))), Promise.resolve())
+        .catch(e2=>{ queueAll(); syncFailed("setExtra (bulk fallback)",e2); });
     }
-    console.warn("setExtras failed:",err); showBanner("⚠ sync failed — saved on this device only");
+    queueAll(); syncFailed("setExtras",err);
   });
 }
 function syncExtra(key){          // star / note / elective overrides -> extras tab
   if(!key) return; writeCache();
-  if(!CURRENT || OFFLINE || READONLY || !HAS_API()) return;
+  if(!CURRENT || READONLY || !HAS_API()) return;
   const e=elec[key]||{};
   // TASK 3A: moved_col rides this same row. A CLEARED move must write "" (not be omitted),
   // otherwise the backend keeps the stale column and the move comes back on next login.
   const data={ starred: stars[key]?"TRUE":"FALSE", note: notes[key]||"", elec_code: e.code||"", elec_name: e.name||"",
                moved_col: moves[key]==null ? "" : String(moves[key]) };
+  if(OFFLINE){ pendPut("extra",key,data); return; }
   clearTimeout(_eTimers[key]);
   _eTimers[key]=setTimeout(()=>{
     API.setExtra(CURRENT.student_id, key, data)
-      .catch(err=>{ console.warn("setExtra failed:",err); showBanner("⚠ sync failed — saved on this device only"); });
+      .then(()=>pendDrop("extra",key))
+      .catch(err=>syncFailed("setExtra",err,"extra",key,data));
   },400);
 }
 let _pTimer=null;
 function syncStudent(){           // student name + advisor comment -> students row
   if(!CURRENT) return;
   writeCache(); try{ localStorage.setItem("cie_adv:"+CURRENT.student_id, advComment); }catch(e){}
-  if(OFFLINE || READONLY || !HAS_API()) return;
+  if(READONLY || !HAS_API()) return;
+  const data={ name: stu.name||"", advisor_comment: advComment||"" };
+  if(OFFLINE){ pendProfile(data); return; }
   clearTimeout(_pTimer);
   _pTimer=setTimeout(()=>{
-    API.setProfile(CURRENT.student_id, { name: stu.name||"", advisor_comment: advComment||"" })
-      .catch(err=>console.warn("setProfile failed:",err));
+    API.setProfile(CURRENT.student_id, data)
+      .then(()=>pendProfileSent(data))
+      .catch(err=>syncFailed("setProfile",err,"profile",null,data));
   },500);
 }
 let _tTimer=null;
 function syncTrack(){             // TASK 2: active curriculum track -> students row
   if(!CURRENT) return;
   writeCache();
-  if(OFFLINE || READONLY || !HAS_API()) return;
+  if(READONLY || !HAS_API()) return;
+  const data={ track };
+  if(OFFLINE){ pendProfile(data); return; }
   clearTimeout(_tTimer);
   _tTimer=setTimeout(()=>{
-    API.setProfile(CURRENT.student_id, { track })
-      .catch(err=>console.warn("setProfile (track) failed:",err));
+    API.setProfile(CURRENT.student_id, data)
+      .then(()=>pendProfileSent(data))
+      .catch(err=>syncFailed("setProfile (track)",err,"profile",null,data));
   },500);
 }
 let _asTimer=null;
 function syncAutoShift(){         // AUTO-SHIFT: clone of syncTrack -- auto_shift -> students row
   if(!CURRENT) return;
   writeCache();
-  if(OFFLINE || READONLY || !HAS_API()) return;
+  if(READONLY || !HAS_API()) return;
+  const data={ auto_shift: autoShiftOn?"TRUE":"FALSE" };
+  if(OFFLINE){ pendProfile(data); return; }
   clearTimeout(_asTimer);
   _asTimer=setTimeout(()=>{
-    API.setProfile(CURRENT.student_id, { auto_shift: autoShiftOn?"TRUE":"FALSE" })
-      .catch(err=>console.warn("setProfile (auto_shift) failed:",err));
+    API.setProfile(CURRENT.student_id, data)
+      .then(()=>pendProfileSent(data))
+      .catch(err=>syncFailed("setProfile (auto_shift)",err,"profile",null,data));
   },500);
 }
 function syncCourse(key){ syncExtra(key); }   // back-compat alias
@@ -3294,6 +3496,10 @@ function applyPayload(p){
   { const xs=parseInt(prof.extra_sems,10); extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
   plannedSems=parsePlanSems(prof.plan_sems);   // PLAN-MODE: same corruption-guard as extra_sems
   autoShiftOn=parseAutoShift(prof.auto_shift); // AUTO-SHIFT: blank / missing column / un-migrated Sheet all mean ON
+  // The Sheet has just overwritten memory. Anything still queued is a change the student made
+  // that never got through, and is therefore NEWER than what we just hydrated -- put it back on
+  // top before the first render, then flushPending() (called by doLogin) pushes it.
+  pendLoad(); pendReapply();
   recoverOrphanCustoms((p&&p.customs&&p.customs.length)||0);   // RECOVERY: see below
 }
 
@@ -3345,7 +3551,12 @@ function recoverOrphanCustoms(serverCount){
 
 // offline / unreachable backend: load this student's cached state from localStorage
 function loadOfflineCache(sid){
-  OFFLINE=true; showBanner("⚠ offline — changes saved on this device only");
+  OFFLINE=true; showBanner("⚠ offline — changes saved here and will sync when the connection returns");
+  // ADMIN: the role rides the cache too. Without it CURRENT had no .role on this path, so
+  // finishAuth()'s isadmin toggle read false and the admin button silently vanished for a staff
+  // member whose sign-in merely hiccuped. It gates UI over data that ?sheet= already serves to
+  // anyone holding the /exec URL, so caching it adds no exposure -- see the note above openAdmin.
+  try{ CURRENT.role = localStorage.getItem("cie_role:"+sid) || "student"; }catch(e){ CURRENT.role = "student"; }
   try{
     Object.assign(grades, JSON.parse(localStorage.getItem("cie_grades:"+sid)||"{}"));
     Object.assign(stars,  JSON.parse(localStorage.getItem("cie_stars:"+sid)||"{}"));
@@ -3364,6 +3575,8 @@ function loadOfflineCache(sid){
   { const xs=parseInt((function(){ try{ return localStorage.getItem("cie_xsems:"+sid); }catch(e){ return null; } })(),10);
     extraSems=(isFinite(xs)&&xs>=0)?Math.min(xs,MAX_EXTRA_SEMS):0; }
   autoShiftOn=parseAutoShift((function(){ try{ return localStorage.getItem("cie_ashift:"+sid); }catch(e){ return null; } })());   // AUTO-SHIFT
+  // the cache already contains these edits; the queue is what still owes the Sheet a write
+  pendLoad();
 }
 
 // ---- login / register ----
@@ -3409,24 +3622,39 @@ function finishAuth(){
 function authBusy(label){ loginErr.textContent=""; loginBtn.disabled=true; loginBtn.textContent=label; }
 function authReset(){ loginBtn.disabled=false; loginBtn.textContent = (mode==='register')?'Create account':'Sign in'; }
 
+// A crash in our OWN hydrate/render path, not a network problem. It used to be caught by the
+// same handler as an unreachable backend, so a render bug came out wearing an offline banner --
+// telling the student their work was safely on this device when in fact nothing had loaded.
+function loginRenderFailed(err){
+  console.error("login failed while building the map:", err);
+  loginErr.textContent="Something went wrong loading your map — please reload and try again.";
+  authReset();
+}
 async function doLogin(){
   const sid=document.getElementById('loginId').value.trim();
   const pw=document.getElementById('loginPw').value;
   if(!sid){ loginErr.textContent="Enter your student ID."; return; }
   authBusy("Signing in…");
-  try{
-    if(HAS_API()){
-      const res=await API.login(sid,pw);
-      if(!res.ok){ loginErr.textContent="Wrong student ID or password."; authReset(); return; }
-      CURRENT={student_id:sid}; applyPayload(res);
-    } else {
-      CURRENT={student_id:sid}; loadOfflineCache(sid);
-    }
-    finishAuth();
-  }catch(err){                         // backend unreachable -> offline fallback
-    console.warn("login failed, offline:", err);
-    CURRENT={student_id:sid}; loadOfflineCache(sid); finishAuth();
+  // The network call gets its own try, and ONLY it may fall back to the cache.
+  let res=null, netErr=null;
+  if(HAS_API()){
+    try{ res=await API.login(sid,pw); }
+    catch(err){ netErr=err; }
   }
+  if(netErr){
+    console.warn("backend unreachable, starting offline:", netErr);
+    CURRENT={student_id:sid}; loadOfflineCache(sid);
+    try{ finishAuth(); }catch(err){ loginRenderFailed(err); return; }
+    startProbe();                      // keep trying, instead of latching offline for the session
+    return;
+  }
+  if(res && !res.ok){ loginErr.textContent="Wrong student ID or password."; authReset(); return; }
+  try{
+    CURRENT={student_id:sid};
+    if(res) applyPayload(res); else loadOfflineCache(sid);   // no res => backend not configured
+    finishAuth();
+  }catch(err){ loginRenderFailed(err); return; }
+  flushPending();                      // replay anything stranded by an earlier session
 }
 
 async function doRegister(){
@@ -3861,7 +4089,7 @@ document.getElementById('adminBtn').addEventListener('click',()=>openAdmin(false
 // ---- PWA service worker ----
 // APP_BUILD is printed in the header and the console: if a bug report does not
 // match the deployed build, the device is running a cached shell, not this code.
-const APP_BUILD='v32';
+const APP_BUILD='v33';
 console.log('CIE course map build '+APP_BUILD);
 const bs=document.querySelector('.brand small'); if(bs) bs.innerHTML+=' &nbsp;//&nbsp; '+APP_BUILD;
 if('serviceWorker' in navigator){

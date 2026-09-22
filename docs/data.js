@@ -13,13 +13,52 @@ const GSHEET_API = "https://script.google.com/macros/s/AKfycbwJDFwpp8reVdDEDAv4s
 
 const CONFIGURED = !!GSHEET_API && !GSHEET_API.includes("PASTE");
 
-async function apiPost(payload) {
+// Apps Script's /exec 302-redirects to script.googleusercontent.com, and THAT endpoint drops a
+// request often enough to matter -- the admin dashboard already had to grow sheetRetry() around
+// exactly this (see the note above fetchCohort in index.html). The student login/write path had
+// no retry at all, so a single transient 404 either lost an edit outright or, at login, latched
+// the whole session into offline mode. Every action below except register() is a read or an
+// upsert-by-key, so replaying one is a no-op; register is the one non-idempotent call and opts
+// out with {retry:false}.
+const POST_TRIES = 3, POST_TIMEOUT_MS = 25000, GET_TIMEOUT_MS = 20000;
+// NOTE: named apiSleep, not sleepMs -- data.js and the inline script in index.html are both
+// classic top-level scripts sharing ONE lexical scope, and index.html already declares a
+// top-level "const sleepMs" for sheetRetry(). A duplicate const there is a SyntaxError that
+// takes the whole page down, not a shadowed variable.
+const apiSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// fetch with a deadline. Apps Script can stall behind its own script lock, and a hung POST used
+// to leave the login button reading "Signing in..." for ever -- no error, no offline fallback,
+// nothing to retry. AbortController turns that into an ordinary failure the caller can handle.
+function fetchDeadline(url, init, ms) {
+  if (typeof AbortController === "undefined") return fetch(url, init);
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  return fetch(url, Object.assign({}, init, { signal: ctl.signal }))
+    .finally(() => clearTimeout(t));
+}
+
+async function apiPost(payload, opts) {
   if (!CONFIGURED) throw new Error("Set your Apps Script /exec URL in data.js (GSHEET_API)");
-  const r = await fetch(GSHEET_API, { method: "POST", body: JSON.stringify(payload) });
-  if (!r.ok) throw new Error("POST " + r.status);
-  const out = await r.json();
-  if (out && out.error) throw new Error(out.error);
-  return out;
+  const tries = (opts && opts.retry === false) ? 1 : POST_TRIES;
+  let last = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const r = await fetchDeadline(GSHEET_API, { method: "POST", body: JSON.stringify(payload) }, POST_TIMEOUT_MS);
+      if (!r.ok) throw new Error("POST " + r.status);
+      const out = await r.json();
+      // A well-formed reply carrying .error is the BACKEND's verdict ("unknown action",
+      // "ID already taken"), not a transport failure. Replaying it would change nothing, so it
+      // is raised at once and flagged, and the retry loop lets a flagged error straight through.
+      if (out && out.error) { const e = new Error(out.error); e.fromBackend = true; throw e; }
+      return out;
+    } catch (err) {
+      if (err && err.fromBackend) throw err;
+      last = err;
+      if (i < tries - 1) await apiSleep(400 * (i + 1));
+    }
+  }
+  throw last;
 }
 
 window.API = {
@@ -32,6 +71,14 @@ window.API = {
     try { fetch(GSHEET_API + "?action=ping", { cache: "no-store" }).catch(() => {}); } catch (e) {}
   },
 
+  // Cheap liveness check driving the reconnect probe in index.html. Resolves true/false and
+  // never rejects, so a caller can poll it on a timer without a catch on every tick.
+  ping() {
+    if (!CONFIGURED) return Promise.resolve(false);
+    return fetchDeadline(GSHEET_API + "?action=ping", { cache: "no-store" }, GET_TIMEOUT_MS)
+      .then((r) => r.ok).catch(() => false);
+  },
+
   // -> {ok:true, profile, grades:{key:grade}, extras:[...]} | {ok:false}
   login(student_id, password) {
     return apiPost({ action: "login", student_id, password });
@@ -39,7 +86,9 @@ window.API = {
 
   // -> {ok:true, profile} | {ok:false, error}
   register({ student_id, name, password, advisor }) {
-    return apiPost({ action: "register", student_id, name, password, advisor });
+    // NOT retried: the row append is not idempotent, so a replay after a lost response comes
+    // back "ID already taken" for an account that was in fact just created.
+    return apiPost({ action: "register", student_id, name, password, advisor }, { retry: false });
   },
 
   // grade lives in the per-semester tab `sem` (e.g. "Y1S1"); "" clears it
@@ -91,7 +140,7 @@ window.API = {
   // exist yet: the Y5+ semester tabs are created on demand and are legitimately absent.
   async sheet(name) {
     if (!CONFIGURED) throw new Error("Set your Apps Script /exec URL in data.js (GSHEET_API)");
-    const r = await fetch(GSHEET_API + "?sheet=" + encodeURIComponent(name), { cache: "no-store" });
+    const r = await fetchDeadline(GSHEET_API + "?sheet=" + encodeURIComponent(name), { cache: "no-store" }, GET_TIMEOUT_MS);
     if (!r.ok) throw new Error("GET " + name + " " + r.status);
     const out = await r.json();
     if (out && out.error) {
